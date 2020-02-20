@@ -20,7 +20,7 @@ setuptools.setup(
     name='jai',
     license="BSD 3-Clause License",
     description='jai provide handy toolkit for building ai projects',
-    version='v0.0.0',
+    version='v0.0.1',
     long_description=README,
     url='https://github.com/gengjia0214/jai.git',
     packages=setuptools.find_packages(),

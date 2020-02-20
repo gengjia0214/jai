@@ -1,4 +1,5 @@
 from torch.nn import Module
+from .datahandler import DataClassDict
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -6,37 +7,9 @@ import csv
 import os
 
 
-class ClassDict:
-    """
-    Dummy class to cache the encoding
-    """
-
-    def __init__(self, names: list or str, n_classes: list or int):
-        """
-        Constructor. Input category order should match with the model output.
-        :param names: prediction names
-        :param n_classes: number of classes for the prediction
-        :return: void
-        """
-
-        assert0 = isinstance(names, str) and isinstance(n_classes, int)
-        if assert0:
-            names = [names]
-            n_classes = [n_classes]
-        assert1 = isinstance(names, list) and isinstance(n_classes, list) and len(names) == len(n_classes)
-
-        assert assert1, "names and n_classes do not match!"
-
-        self.names = names
-        self.n_classes = n_classes
-
-    def items(self):
-        return zip(self.names, self.n_classes)
-
-
 class BasicLogger:
 
-    def __init__(self, log_dst: str, prefix: str, class_dict: ClassDict, model_dst=None, keep='all_best',
+    def __init__(self, log_dst: str, prefix: str, class_dict: DataClassDict, model_dst=None, keep='all_best',
                  verbose=False):
 
         if keep not in ['one_best', 'all_best']:
@@ -108,8 +81,15 @@ class BasicLogger:
 
         # log the predictions to the confusion matrix (if at eval phase)
         if phase == 'eval':
-            outputs = [outputs]
-            truths = [truths]
+            if isinstance(outputs, tuple) or isinstance(outputs, list):
+                outputs = list(outputs)
+                truths = list(truths)
+            elif isinstance(outputs, torch.Tensor):
+                outputs = [outputs]
+                truths = [truths]
+            else:
+                raise Exception("The output and ground truth should both in either Tensor or a list/tuple of Tensors!")
+
             self._log_predictions(outputs, truths, entry_ids)
 
         return better
