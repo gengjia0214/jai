@@ -104,7 +104,8 @@ class BasicTrainer:
                     self.model.eval()
 
                 # mini_batch: {'x': tensor for input data, 'y': tensor for ground truth}
-                for i, mini_batch in enumerate(data_loaders[phase]):
+                for i, mini_batch in tqdm(enumerate(data_loaders[phase]), total=len(data_loaders[phase]),
+                                          desc='Epoch {} Phase {}'.format(epoch, phase)):
                     # these should already be in tensor format
                     inputs = mini_batch['x'].to(self.device)
                     truths = mini_batch['y'].to(self.device)
@@ -126,7 +127,8 @@ class BasicTrainer:
                         # if the model is better, export it
                         if logger.receive(epoch, batch, phase, loss, outputs, truths, entry_ids):
                             logger.export_best_model(epoch-1, self.model, self.optimizer, self.scheduler)
-                            print("Better Model Found At Epoch {}.".format(epoch))
+                            print("Better Model Found At Epoch {}.".format(epoch-1))
+
                         # backward + optimize only if in training phase
                         if phase == 'train':
                             loss.backward()
