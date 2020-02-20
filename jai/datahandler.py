@@ -1,6 +1,5 @@
 
 
-
 class DataClassDict:
     """
     Dummy class to cache the encoding
@@ -27,3 +26,4 @@ class DataClassDict:
 
     def items(self):
         return zip(self.names, self.n_classes)
+

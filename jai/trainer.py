@@ -1,4 +1,5 @@
 from .logger import *
+from .augments import Augment
 from tqdm.notebook import tqdm
 import torch as torch
 from torch.nn import Module
@@ -68,7 +69,7 @@ class BasicTrainer:
                 print("Scheduler state was loaded!")
 
     def train(self, train_dataloader: DataLoader, eval_dataloader: DataLoader, epochs: int, loss_func: Module,
-              logger: BasicLogger):
+              logger: BasicLogger, augment: Augment):
         """
         Train model
         :param train_dataloader: train data
@@ -76,6 +77,7 @@ class BasicTrainer:
         :param epochs: total number of epochs
         :param loss_func: loss function
         :param logger: logger
+        :param augment: augmentation class
         :return: void
         """
 
@@ -92,6 +94,9 @@ class BasicTrainer:
         for epoch in range(epochs):
 
             for phase in ['train', 'eval']:
+                # TODO: try to refactor the augment, currently need to pass it to both the train method and the
+                #  dataset class. maybe refactor the split method in dataset
+                augment.switch_phase(phase)
                 if phase == 'train':
                     self.model.train()
                 else:
@@ -99,11 +104,9 @@ class BasicTrainer:
 
                 # mini_batch: {'x': tensor for input data, 'y': tensor for ground truth}
                 for i, mini_batch in enumerate(data_loaders[phase]):
-
                     # these should already be in tensor format
                     inputs = mini_batch['x'].to(self.device)
                     truths = mini_batch['y'].to(self.device)
-
                     # zero the parameter gradients
                     self.optimizer.zero_grad()
 

@@ -1,4 +1,5 @@
 from torch.nn import Module
+from torch import Tensor
 from .datahandler import DataClassDict
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,7 +10,7 @@ import os
 
 class BasicLogger:
 
-    def __init__(self, log_dst: str, prefix: str, class_dict: DataClassDict, model_dst=None, keep='all_best',
+    def __init__(self, log_dst: str, prefix: str, class_dict: DataClassDict, model_dst=None, keep='one_best',
                  verbose=False):
 
         if keep not in ['one_best', 'all_best']:
@@ -81,14 +82,14 @@ class BasicLogger:
 
         # log the predictions to the confusion matrix (if at eval phase)
         if phase == 'eval':
-            if isinstance(outputs, tuple) or isinstance(outputs, list):
-                outputs = list(outputs)
-                truths = list(truths)
-            elif isinstance(outputs, torch.Tensor):
-                outputs = [outputs]
-                truths = [truths]
-            else:
-                raise Exception("The output and ground truth should both in either Tensor or a list/tuple of Tensors!")
+            # if isinstance(outputs, tuple) or isinstance(outputs, list):
+            #     outputs = list(outputs)
+            #     truths = list(truths)
+            # elif isinstance(outputs, torch.Tensor):
+            #     outputs = [outputs]
+            #     truths = [truths]
+            # else:
+            #     raise Exception("The output and ground truth should both in either Tensor or a list/tuple of Tensors!")
 
             self._log_predictions(outputs, truths, entry_ids)
 
@@ -189,8 +190,13 @@ class BasicLogger:
             row = [str(epoch), str(train_loss), str(eval_loss)] + acc
             writer.writerow(row)
 
-    def _log_predictions(self, outputs, truths, entry_ids):
+    def _log_predictions(self, outputs: Tensor, truths: Tensor, entry_ids):
 
+        # if there is only one predictor
+        if truths.ndim == 1:
+            truths = [truths]  # just wrap with a list, this is like N_pred x B ~ 1xB
+        else:  # if there are multiple predictor, need to transpose the truth to N_pred x B
+            truths = truths.transpose(1, 0)
         for i, name in enumerate(self.class_dict.names):
 
             # get batch prediction and truth
@@ -255,6 +261,7 @@ class BasicLogger:
         self.fail_log = {}
         self.running_loss = {'train': [0, 0], 'eval': [0, 0]}
         for name, n_classes in self.class_dict.items():
+            print(name, n_classes)
             self.confusion_matrices[name] = np.zeros((n_classes, n_classes), dtype=np.int)
 
     def _plot_loss(self, size=(12, 4), dpi=400):
