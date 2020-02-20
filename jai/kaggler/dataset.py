@@ -126,6 +126,9 @@ class BengaliLocalDataset(Dataset):
         :return: data entry
         """
 
+        if isinstance(idx, str):
+            idx = int(idx[idx.find('_')+1:])
+
         # get annotation
         annotations = self.ann[idx]
         img_id = annotations['img_id']
@@ -147,22 +150,31 @@ class BengaliLocalDataset(Dataset):
             # for augment in self.augments:
             # TODO: Refactor this to a list of augments
             img = self.augments.proc(img)
+
         return {"id": img_id, "x": img, "y": y}
 
     def __len__(self):
         return len(self.ann)
 
-    def view_random_batch(self, n_row):
+    def view_batch(self, n_row, img_ids=None):
         """
         View a random batch (12) of images
         :param n_row: number of samples = n_row * n_row
+        :param img_ids: if provide a list of image id (len = n_row * n_row), show those
         :return: void
         """
 
-        batch_ids = np.random.randint(0, self.__len__(), n_row*n_row, dtype=np.int)
+        if img_ids is None:
+            batch_idxes = np.random.randint(0, self.__len__(), n_row*n_row, dtype=np.int)
+        elif len(img_ids) == n_row*n_row:
+            batch_idxes = img_ids
+        else:
+            raise Exception("Length of img_ids need to be same as n_row*n_row")
+
         batch_processed = []
         batch_org = []
-        for idx in batch_ids:
+
+        for idx in batch_idxes:
             # get processed image
             batch_processed.append(self[idx]['x'])
 
@@ -186,3 +198,4 @@ class BengaliLocalDataset(Dataset):
         plt.ioff()
         plt.imshow(grid_org.numpy().transpose(1, 2, 0))
         plt.show()
+

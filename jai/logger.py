@@ -101,6 +101,25 @@ class BasicLogger:
         else:
             raise NotImplemented("Currently only support plotting the losses.")
 
+    def get_failures(self, epoch='best'):
+        """
+        Get the failures of an epoch
+        :param epoch: epoch
+        :return: list of failed classification (ID)
+        """
+        fn = "{}_failures_epoch={}.csv".format(self.prefix, epoch)
+        fp = os.path.join(self.fail_log_dst, fn)
+        if not os.path.isfile(fp):
+            raise FileExistsError("File {} does not exist. Check whether the epoch is correct.".format(epoch))
+        failures = []
+        with open(fp, mode='r') as csv_file:
+            reader = csv.reader(csv_file)
+            for i, row in enumerate(reader):
+                if i == 0:
+                    continue
+                failures.append({'id': row[0], 'name': row[1], 'prediction': row[2], 'truth': row[3]})
+        return failures
+
     def export_best_model(self, epoch, model: Module, optimizer, scheduler=None):
 
         if self.keep == 'one_best':
@@ -130,9 +149,8 @@ class BasicLogger:
             writer = csv.writer(failure_csv)
             head = ['ID', 'Predictor', 'Prediction', 'Truth']
             writer.writerow(head)
-            row = []
             for entry_id, log in self.fail_log.items():
-                row.append(str(entry_id))
+                row = [str(entry_id)]
                 for predictor_name in log:
                     row.append(predictor_name)
                     row.append(log[predictor_name]['prediction'])
