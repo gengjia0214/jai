@@ -24,7 +24,7 @@ setuptools.setup(
     long_description=README,
     url='https://github.com/gengjia0214/jai.git',
     packages=setuptools.find_packages(),
-    python_requires=">=3.7",
+    python_requires=">=3.6",
     install_requires=requirements,
     classifiers=[
         # Trove classifiers
