@@ -24,7 +24,7 @@ class BasicLogger:
         self.bl_p = {"train": blt_p, "eval": ble_p}
         self.ep_p = os.path.join(log_dst, "{}_epoch_log.csv".format(prefix))
         self.prefix = prefix
-        self.model_dst = self.model_dst if model_dst else log_dst
+        self.model_dst = model_dst if model_dst is not None else log_dst
 
         self.fail_log = {}
         self.confusion_matrices = {}

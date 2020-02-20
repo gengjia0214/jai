@@ -10,7 +10,7 @@ from torch.optim.lr_scheduler import _LRScheduler as Scheduler
 
 
 class BasicTrainer:
-
+    # TODO: refactor augmentation. Gradually change aug prob.
     def __init__(self, model: Module, optimizer: partial, scheduler: partial = None,
                  device=torch.device('cuda'), verbose=False):
         """
@@ -69,7 +69,7 @@ class BasicTrainer:
                 print("Scheduler state was loaded!")
 
     def train(self, train_dataloader: DataLoader, eval_dataloader: DataLoader, epochs: int, loss_func: Module,
-              logger: BasicLogger, augment: Augment):
+              logger: BasicLogger, augment: Augment = None):
         """
         Train model
         :param train_dataloader: train data
@@ -96,7 +96,8 @@ class BasicTrainer:
             for phase in ['train', 'eval']:
                 # TODO: try to refactor the augment, currently need to pass it to both the train method and the
                 #  dataset class. maybe refactor the split method in dataset
-                augment.switch_phase(phase)
+                if augment:
+                    augment.switch_phase(phase)
                 if phase == 'train':
                     self.model.train()
                 else:
