@@ -1,4 +1,4 @@
-# jai - A Lego-style Deep Learning Library Build on PyTorch
+# jai - A LEGO-style Deep Learning Library Build on PyTorch
 
 ## Dev. Plan
 1. Refactor the augmentation pipeline
