@@ -1,8 +1,8 @@
 # jai - Just Assemble It!
 
-*Author: Jia Geng*
+Author: Jia Geng
 
-*Email: jxg570@miami.edu | gjia0214@hotmail.com*
+Email: jxg570@miami.edu | gjia0214@hotmail.com
 
 ## Introduction
 
