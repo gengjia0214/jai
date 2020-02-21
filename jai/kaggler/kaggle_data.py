@@ -103,9 +103,7 @@ class BengaliParquetData(JaiDataset):
             consonant = int(annotations['consonant'])
             y = torch.Tensor([root, vowel, consonant]).int()
 
-        for tsf in self.tsfms:
-            img = tsf(img)
-
+        img = self.prepro(img)
         img = self.augment(img)
 
         return {"id": img_id, "x": img, "y": y}
@@ -167,9 +165,7 @@ class BengaliLocalDataset(JaiDataset):
         img_p = os.path.join(self.img_src, "{}".format(f_idx), "{}.png".format(img_id))
         img = cv.imread(img_p, cv.IMREAD_GRAYSCALE)
 
-        for tsf in self.tsfms:
-            img = tsf(img)
-
+        img = self.prepro(img)
         img = self.augment(img)
 
         return {"id": img_id, "x": img, "y": y}

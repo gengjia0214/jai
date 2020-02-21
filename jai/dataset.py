@@ -1,5 +1,6 @@
 from torch import randperm
 from torch.utils.data import Dataset
+import torch
 
 
 def _accumulate(iterable, fn=lambda x, y: x + y):
@@ -40,7 +41,8 @@ class JaiDataset(Dataset):
     Abstract class for Jai Dataset that supports augmentation
     """
 
-    def __init__(self, augments=None, *args):
+    def __init__(self, tsfms, augments=None, *args):
+        self.tsfms = tsfms
         self.augmentators = augments
 
     def __getitem__(self, item):
@@ -48,6 +50,18 @@ class JaiDataset(Dataset):
 
     def __len__(self):
         raise NotImplemented("")
+
+    def prepro(self, img):
+        """
+        Preprocess the data
+        :param img: image
+        :return: void
+        """
+
+        for tsf in self.tsfms:
+            img = tsf(img)
+
+        return img
 
     def augment(self, img):
         """
