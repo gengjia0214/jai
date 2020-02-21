@@ -200,7 +200,7 @@ class Evaluator:
         if self.avg == 'micro':
             return round(tp.sum()/(preds.sum() + 1e-8), 8)
         else:
-            return round(((tp/preds) + 1e-8).mean(), 8)
+            return round((tp/(preds + 1e-8)).mean(), 8)
 
     def recall(self, cm):
         """
@@ -214,7 +214,7 @@ class Evaluator:
         if self.avg == 'micro':
             return round(tp.sum()/(acts.sum() + 1e-8), 8)
         else:
-            return round(((tp/acts) + 1e-8).mean(), 8)
+            return round((tp/(acts + 1e-8)).mean(), 8)
 
     def avg_over_predictor(self, pooled):
         """
@@ -225,5 +225,5 @@ class Evaluator:
 
         arr1 = np.array(pooled)
         arr2 = np.array(self.weights)
-        return arr1 * arr2 / (arr2.sum() + 1e-8)
+        return (arr1 * arr2).sum() / (arr2.sum() + 1e-8)
 

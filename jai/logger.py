@@ -186,11 +186,14 @@ class BasicLogger:
             writer = csv.writer(ble_csv)
             writer.writerow(head)
 
+        mapping = {'precision': 'pcs', 'accuracy': 'acc', 'recall': 'recall'}
+        ctr = mapping[self.evaluator.criteria]
         with open(self.ep_p, mode='w') as epoch_csv:
-            acc_head = ["{}_{}Acc".format(phase, name) for phase in ['train', 'eval'] for name in self.evaluator.names]
-            head = ["Epoch", "Train Loss", "Eval Loss"] + acc_head
-            head.append("Train_AvgAcc")
-            head.append("Valid_AvgACC")
+            score_head = ["{}_{}_{}".format(phase, name, ctr) for phase in ['train', 'eval'] for name in
+                          self.evaluator.names]
+            head = ["Epoch", "train_loss", "eval_Loss"] + score_head
+            head.append("train_avg_score")
+            head.append("valid_avg_score")
             writer = csv.writer(epoch_csv)
             writer.writerow(head)
 
@@ -204,10 +207,11 @@ class BasicLogger:
 
         with open(self.ep_p, mode='a') as epoch_csv:
             writer = csv.writer(epoch_csv)
-            acc = ["{}".format(acc_dict[phase][name]) for phase in ['train', 'eval'] for name in self.evaluator.names]
-            acc.append("{}".format(acc_dict['train']['avg']))
-            acc.append("{}".format(acc_dict['eval']['avg']))
-            row = [str(self.curr_epoch), str(train_loss), str(eval_loss)] + acc
+            scores = ["{}".format(acc_dict[phase][name]) for phase in ['train', 'eval'] for name in
+                      self.evaluator.names]
+            scores.append("{}".format(acc_dict['train']['avg']))
+            scores.append("{}".format(acc_dict['eval']['avg']))
+            row = [str(self.curr_epoch), str(train_loss), str(eval_loss)] + scores
             writer.writerow(row)
 
     def _log_predictions(self, phase, outputs: Tensor, truths: Tensor, entry_ids):

@@ -136,7 +136,7 @@ class BasicTrainer:
 
                         # if the model is better, export it
                         if logger.receive(epoch, batch, phase, loss, outputs, truths, entry_ids):
-                            logger.export_best_model(epoch-1, self.model, self.optimizer, self.scheduler)
+                            logger.export_best_model(self.model, self.optimizer, self.scheduler)
                             print("Better Model Found At Epoch {}.".format(epoch-1))
 
                         # backward + optimize only if in training phase
@@ -146,4 +146,4 @@ class BasicTrainer:
                             self.scheduler.step(epoch=epoch)  # weird warning if remove the None here
             pbar_epoch.update(1)
         # last dummy epoch
-        logger.receive(epochs-1, batch=-1, phase='stop')
+        logger.receive(epochs, batch=-1, phase='stop')
