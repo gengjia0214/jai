@@ -1,6 +1,14 @@
-# jai - A LEGO-style PyTorch-based Deep Learning Library
+# jai - Just Assemble It!
+
+## Introduction
+
+**jai** is a LEGO-style PyTorch-based Deep Learning Library. 
+
+_Deep learning is fun. What not fun is the pipeline digging and rigging. Why can't we just enjoy the process
+ of exploring all kinds of SOTA techniques _
+
+The idea behind this project is to reduce the amount of time spent on building the 
 
 ## Dev. Plan
-1. Refactor the augmentation pipeline
-2. Clean up the code in arch
-3. Implement the check failure case method. Use open cv + keyboard control
+
+
