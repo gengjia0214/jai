@@ -16,12 +16,14 @@ The main idea behind **jai** is to reduce the amount of time spent on building a
 
 Implement anything popped up in my head when I got time and coffee...
 
-## Main Class Objects
+## Library Walk Through 
+
+**Currently the library is in 0.0.-1 version**...
 
 `jai.dataset.py` provides abstract dataset classes that inherit the PyTorch DataSet class. 
 The difference is that jai.dataset supports data augmentation and processing.
 
-`jai.improc` provides some handy image processing functions, which can be injected to the jai dataset as image
+`jai.improc.py` provides some handy image processing functions, which can be injected to the jai dataset as image
  preprocessing functions or to the augmentation classes as data augmentation functions. 
 
 `jai.augments.py` provides the augmentation classes that can be attached to the jai dataset classes. 
@@ -30,11 +32,11 @@ It (will) also provide implementations of some advanced augmentation techniques.
 `jai.trainer.py` provide a trainer class that supports classic PyTorch style deep learning training pipeline.
 It has some specific requirements on the implementation of the dataset object. 
 
-`jai.logger` provides the result/performance logger classes. 
+`jai.logger.py` provides the result/performance logger classes. 
 These logger classes can be attached to the trainer during the training stage and able to export, report all kinds of
  model performance related metrics.
 
-`jai.arch` (will) provide handy way to modify popular and vanilla deep learning architectures to make the
+`jai.arch.py` (will) provide handy way to modify popular and vanilla deep learning architectures to make the
  architecture compatible with the jai framework.
 
 `jai.kaggler` (will) provides data pipelining solutions, toolbox for general or selected Kaggle project development.
