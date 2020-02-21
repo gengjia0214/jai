@@ -45,7 +45,7 @@ It will also collect some useful tools/models from the kagglers.
 
 ## Things Need to be Prepared before Use (not fully tested)
 
-0. Learn how to use `partial()` as it is crucial for this library.
+0. **Learn how to use `partial()` as it is crucial for this library.**
 
     ```
     from functiontools import partial
@@ -90,7 +90,7 @@ The `JaiDataset` constructor can receive two args for preprocessing and augmenta
     return {"id": img_id, "x": img, "y": y}
     ```
 
-3. Prepare preprocessing and augmentation. 
+3. **Prepare preprocessing and augmentation.**
 For preprocessing, just use a list to wrap the functions from `jai.improc`. 
 The list must contain the `to_tensor` method at the end. 
 The wrapped elements must be functions not the function calls. 
@@ -119,7 +119,7 @@ For some functions that takes hyper-parameters, you need to use `paritial(func)`
     gridmask = FuncAugmentator(p_start=0.1, p_end=1, func=partial(AugF.grid_mask, d1=96, d2=244))
     ```
 
-4. Prepare the optimizer and scheduler. The easiest way is just to grab the optimizer and scheduler from PyTorch. 
+4. **Prepare the optimizer and scheduler.** The easiest way is just to grab the optimizer and scheduler from PyTorch. 
 You can also implement your own. But make sure use the PyTorch style. Same, use the partial function!
     
     E.g.
@@ -131,7 +131,7 @@ You can also implement your own. But make sure use the PyTorch style. Same, use 
     scheduler = partial(CosineAnnealingLR, T_max=100)
     ```
 
-5. Prepare the `jai.dataset.DataClassDict`. This is for the purpose of generating logs accordingly.
+5. **Prepare the `jai.dataset.DataClassDict`.** This is for the purpose of generating logs accordingly.
    E.g. if your model is trying to predict the type of dog in image.
     - `names=` is for hashing the predictors
     - `n_classes=` is for indicating how many possible classes for each predictor.
@@ -143,7 +143,7 @@ You can also implement your own. But make sure use the PyTorch style. Same, use 
    class_dict = DataClassDict(names=['dog_type'], n_classes=[10])
    ``` 
 
-6. Prepare the Logger. You need to prepare a clean directory for receiving log files, 
+6. **Prepare the Logger.** You need to prepare a clean directory for receiving log files, 
 a prefix string for identifying your trial, and a `ClassDict` for specifying your encoding.
 `keep='one_best` and it will only export the best model and overwrite. 
 `keep='all_best'` will export all encountered best models.
