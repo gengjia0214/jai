@@ -43,7 +43,7 @@ These logger classes can be attached to the trainer during the training stage an
 It will also collect some useful tools/models from the kagglers.
  
 
-## Things Need to Prepare before Use (not fully tested)
+## Things Need to be Prepared before Use (not fully tested)
 
 0. Learn how to use `partial()` as it is crucial for this library.
 
