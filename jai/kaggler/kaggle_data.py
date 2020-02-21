@@ -7,7 +7,7 @@ import pandas as pd
 from tqdm.notebook import tqdm
 from torchvision import utils
 from matplotlib import pyplot as plt
-from jai.dataset import JaiDataset, jai_split
+from jai.dataset import JaiDataset
 
 
 def extract_img_from_parquet(src_dir, dst_dir):

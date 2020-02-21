@@ -1,6 +1,6 @@
 from torch import randperm
 from torch.utils.data import Dataset
-import torch
+import numpy as np
 
 
 def _accumulate(iterable, fn=lambda x, y: x + y):
@@ -24,7 +24,7 @@ def jai_split(dataset, lengths):
     Random split for JaiDataset
     :param dataset: input dataset
     :param lengths: lengths
-    :return: splitted dataset
+    :return: split dataset
     """
 
     if sum(lengths) != len(dataset):
@@ -94,6 +94,7 @@ class JaiDataset(Dataset):
         eval_len = self.__len__() - train_len
         lengths = [train_len, eval_len]
         train_set, eval_set = jai_split(self, lengths)
+
         return {'train': train_set, 'eval': eval_set}
 
 
@@ -115,30 +116,114 @@ class JaiSubset(JaiDataset):
         return len(self.indices)
 
 
-class DataClassDict:
+class Evaluator:
     """
-    Dummy class to cache the encoding
+    Class to cache the encoding and evaluation Criteria.
+    The scoring operators only work for confusion matrix that
+    - row idx represent the predicted class
+    - col idx represent the true class
     """
 
-    def __init__(self, names: list or str, n_classes: list or int):
+    def __init__(self, names: list or str, n_classes: list or int, criteria, avg='macro', weights=None, rf=8):
         """
         Constructor. Input category order should match with the model output.
+        micro:
+        Calculate metrics globally by counting the total true positives, false negatives and false positives.
+        macro:
+        Calculate metrics for each label, and find their unweighted mean. This does not take label imbalance into
+        account.
         :param names: prediction names
         :param n_classes: number of classes for the prediction
+        :param criteria: criteria for computing the score
+        :param avg: averaging rule
+        :param weights: weights for the sum the scores of multiple predictors
+        :param rf: round off
         :return: void
         """
 
-        assert0 = isinstance(names, str) and isinstance(n_classes, int)
+        assert criteria in ['accuracy', 'precision', 'recall'], "criteria must be 'accuracy', 'precision' or 'recall'"
+        assert avg in ['micro', 'macro'], "avg must be either 'micro' or 'macro'"
+        assert0 = isinstance(names, str) and isinstance(n_classes, int) and weights is None
+
         if assert0:
             names = [names]
             n_classes = [n_classes]
-        assert1 = isinstance(names, list) and isinstance(n_classes, list) and len(names) == len(n_classes)
+            weights = [1]
 
-        assert assert1, "names and n_classes do not match!"
+        assert1 = isinstance(names, list) and isinstance(n_classes, list) and isinstance(weights, list) and len(
+            names) == len(n_classes) == len(weights)
+
+        assert assert1, "names, n_classes, weights do not match!"
 
         self.names = names
         self.n_classes = n_classes
+        self.criteria = criteria
+        self.avg = avg
+        self.weights = weights
+        self.rf = rf
 
     def items(self):
+        """
+        Provide a generator for iterating through the encoding
+        :return: a generator of name: n_classes
+        """
         return zip(self.names, self.n_classes)
+
+    def compute_score(self, cm):
+        """
+        compute score
+        :param cm: confusion matrix
+        :return: requested criteria score
+        """
+
+        match = {'accuracy': self.accuracy, 'recall': self.recall, 'precision': self.precision}
+        return match[self.criteria](cm)
+
+    def accuracy(self, cm: np.ndarray):
+        """
+        Compute the overall accuracy score
+        :param cm: confusion matrix
+        :return: accuracy
+        """
+
+        return round(cm.diagonal().sum()/(cm.sum()+1e-8), self.rf)
+
+    def precision(self, cm: np.ndarray):
+        """
+        Compute the average precision score
+        :param cm: confusion matrix
+        :return: averaged f1 score
+        """
+
+        tp = cm.diagonal()
+        preds = cm.sum(axis=1)
+        if self.avg == 'micro':
+            return round(tp.sum()/(preds.sum() + 1e-8), 8)
+        else:
+            return round(((tp/preds) + 1e-8).mean(), 8)
+
+    def recall(self, cm):
+        """
+        Compute the average recall score
+        :param cm: confusion matrix
+        :return: averaged f1 score
+        """
+
+        tp = cm.diagonal()
+        acts = cm.sum(axis=0)
+        if self.avg == 'micro':
+            return round(tp.sum()/(acts.sum() + 1e-8), 8)
+        else:
+            return round(((tp/acts) + 1e-8).mean(), 8)
+
+    def avg_over_predictor(self, pooled):
+        """
+        Average score across predictors
+        :param pooled: pooled scores across predictors
+        :return: avg scores across predictors
+        """
+
+        arr1 = np.array(pooled)
+        arr2 = np.array(self.weights)
+        return arr1 * arr2 / (arr2.sum() + 1e-8)
 

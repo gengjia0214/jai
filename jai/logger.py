@@ -1,6 +1,6 @@
 from torch.nn import Module
 from torch import Tensor
-from .dataset import DataClassDict
+from .dataset import Evaluator
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -10,7 +10,7 @@ import os
 
 class BasicLogger:
 
-    def __init__(self, log_dst: str, prefix: str, class_dict: DataClassDict, keep='one_best',
+    def __init__(self, log_dst: str, prefix: str, evaluator: Evaluator, keep='one_best',
                  verbose=False):
 
         if keep not in ['one_best', 'all_best']:
@@ -38,9 +38,9 @@ class BasicLogger:
         self.confusion_matrices = {'train': {}, 'eval': {}}
         self.best_acc = {'avg': 0}
         self.running_loss = {'train': [0, 0], 'eval': [0, 0]}
-        self.class_dict = class_dict
+        self.evaluator = evaluator
         for phase in ['train', 'eval']:
-            for name, n_classes in self.class_dict.items():
+            for name, n_classes in self.evaluator.items():
                 self.confusion_matrices[phase][name] = np.zeros((n_classes, n_classes), dtype=np.int)
 
         self._create_logs()
@@ -61,25 +61,25 @@ class BasicLogger:
         better = False
         if epoch != self.curr_epoch and (phase in ['train', 'stop']):
             # last epoch completed check whether have better result
-            temp = self._compute_acc()
+            temp = self._compute_scores()
             train_loss = round(self.running_loss['train'][0] / self.running_loss['train'][1], 8)
             eval_loss = round(self.running_loss['eval'][0] / self.running_loss['eval'][1], 8)
-            self._update_epoch_logs(epoch - 1, train_loss, eval_loss, temp)
+            self._update_epoch_logs(train_loss, eval_loss, temp)
 
             # if find better acc, return the logs
             if temp['eval']['avg'] > self.best_acc['avg'] + 1e-8:
                 self.best_acc = temp['eval']
-                self.export_fail_log(epoch-1)
-                self.export_confusion_matrix(epoch-1)
+                self.export_fail_log()
+                self.export_confusion_matrix()
                 better = True
 
             # setup attributes for new epoch
             # if done with all epochs stop
             if phase == 'stop':
-                self._report_epoch(epoch, train_loss, eval_loss, temp)
+                self._report_epoch(train_loss, eval_loss, temp)
                 return better
             else:
-                self._report_epoch(epoch-1, train_loss, eval_loss, temp)
+                self._report_epoch(train_loss, eval_loss, temp)
                 self._prepare_next_epoch()
             self.curr_epoch = epoch
 
@@ -120,12 +120,12 @@ class BasicLogger:
                 failures.append({'id': row[0], 'name': row[1], 'prediction': row[2], 'truth': row[3]})
         return failures
 
-    def export_best_model(self, epoch, model: Module, optimizer, scheduler=None):
+    def export_best_model(self, model: Module, optimizer, scheduler=None):
 
         if self.keep == 'one_best':
             name = 'best'
         else:
-            name = epoch
+            name = self.curr_epoch
 
         mp = os.path.join(self.model_dst, "{}_model_epoch={}.pth".format(self.prefix, name))
         torch.save(model.state_dict(), mp)
@@ -136,14 +136,14 @@ class BasicLogger:
             torch.save(scheduler.state_dict(), sp)
 
         if self.verbose:
-            print("Model, Scheduler and Optimizer at Epoch {} Was Exported.".format(epoch))
+            print("Model, Scheduler and Optimizer at Epoch {} Was Exported.".format(self.curr_epoch))
 
-    def export_fail_log(self, epoch):
+    def export_fail_log(self):
 
         if self.keep == 'one_best':
             name = 'best'
         else:
-            name = epoch
+            name = self.curr_epoch
         fl_p = os.path.join(self.fail_log_dst, "{}_failures_epoch={}.csv".format(self.prefix, name))
         with open(fl_p, mode='w') as failure_csv:
             writer = csv.writer(failure_csv)
@@ -157,14 +157,14 @@ class BasicLogger:
                     row.append(log[predictor_name]['truth'])
                 writer.writerow(row)
         if self.verbose:
-            print("Failure Log at Epoch {} Was Exported.".format(epoch))
+            print("Failure Log at Epoch {} Was Exported.".format(self.curr_epoch))
 
-    def export_confusion_matrix(self, epoch):
+    def export_confusion_matrix(self):
 
         if self.keep == 'one_best':
             suffix = 'best'
         else:
-            suffix = epoch
+            suffix = self.curr_epoch
 
         for phase in ['train', 'eval']:
             for pname, cfm in self.confusion_matrices[phase].items():
@@ -172,7 +172,7 @@ class BasicLogger:
                 cfm_p = os.path.join(self.confusion_dst, fn)
                 np.save(cfm_p, cfm)
                 if self.verbose:
-                    print("Confusion Matrices at Epoch {} Was Exported.".format(epoch))
+                    print("Confusion Matrices at Epoch {} Was Exported.".format(self.curr_epoch))
 
     def _create_logs(self):
 
@@ -187,7 +187,7 @@ class BasicLogger:
             writer.writerow(head)
 
         with open(self.ep_p, mode='w') as epoch_csv:
-            acc_head = ["{}_{}Acc".format(phase, name) for phase in ['train', 'eval'] for name in self.class_dict.names]
+            acc_head = ["{}_{}Acc".format(phase, name) for phase in ['train', 'eval'] for name in self.evaluator.names]
             head = ["Epoch", "Train Loss", "Eval Loss"] + acc_head
             head.append("Train_AvgAcc")
             head.append("Valid_AvgACC")
@@ -200,14 +200,14 @@ class BasicLogger:
             writer = csv.writer(bl_csv)
             writer.writerow([str(batch), str(round(loss, 8))])
 
-    def _update_epoch_logs(self, epoch, train_loss, eval_loss, acc_dict):
+    def _update_epoch_logs(self, train_loss, eval_loss, acc_dict):
 
         with open(self.ep_p, mode='a') as epoch_csv:
             writer = csv.writer(epoch_csv)
-            acc = ["{}".format(acc_dict[phase][name]) for phase in ['train', 'eval'] for name in self.class_dict.names]
+            acc = ["{}".format(acc_dict[phase][name]) for phase in ['train', 'eval'] for name in self.evaluator.names]
             acc.append("{}".format(acc_dict['train']['avg']))
             acc.append("{}".format(acc_dict['eval']['avg']))
-            row = [str(epoch), str(train_loss), str(eval_loss)] + acc
+            row = [str(self.curr_epoch), str(train_loss), str(eval_loss)] + acc
             writer.writerow(row)
 
     def _log_predictions(self, phase, outputs: Tensor, truths: Tensor, entry_ids):
@@ -217,7 +217,7 @@ class BasicLogger:
             truths = [truths]  # just wrap with a list, this is like N_pred x B ~ 1xB
         else:  # if there are multiple predictor, need to transpose the truth to N_pred x B
             truths = truths.transpose(1, 0)
-        for i, name in enumerate(self.class_dict.names):
+        for i, name in enumerate(self.evaluator.names):
 
             # get batch prediction and truth
             predictions = outputs[i].argmax(-1).detach().cpu().int().tolist()
@@ -233,28 +233,27 @@ class BasicLogger:
                             self.fail_log[entry_ids[j]] = {}
                         self.fail_log[entry_ids[j]] = {name: {'prediction': pred, 'truth': tru}}
 
-    def _compute_acc(self):
+    def _compute_scores(self):
         """
-        Compute the average accuracy using confusion matrix
+        Compute the scores defined by the Evaluator
         :return: accuracy dictionary
         """
 
         temp = {'train': {}, 'eval': {}}
         for phase in ['train', 'eval']:
-            total = 0
-            for name, confusion in self.confusion_matrices[phase].items():
-                confusion: np.ndarray
-                acc = round(np.sum(confusion.diagonal()) / confusion.sum(), 8)
-                temp[phase][name] = acc
-                total += acc
-            avg_acc = round(total / len(self.class_dict.names), 8)
-            temp[phase]['avg'] = avg_acc
+            pooled = []
+            for name, cm in self.confusion_matrices[phase].items():
+                cm: np.ndarray
+                score = self.evaluator.compute_score(cm)
+                temp[phase][name] = score
+                pooled.append(score)
+            avg = self.evaluator.avg_over_predictor(pooled)
+            temp[phase]['avg'] = avg
         return temp
 
-    def _report_epoch(self, epoch, train_loss, eval_loss, acc_dict):
+    def _report_epoch(self, train_loss, eval_loss, acc_dict):
         """
         Working on new epoch
-        :param epoch: next epoch
         :param train_loss: training loss
         :param eval_loss: evaluation loss
         :param acc_dict: accuracy dictionary
@@ -269,15 +268,10 @@ class BasicLogger:
             acc_report[phase] += " AVG Acc: {:<10}".format(acc_dict[phase]['avg'])
 
         print("\n===================================\n")
-        print("Epoch {} Completed".format(epoch))
+        print("Epoch {} Completed".format(self.curr_epoch))
         print("TrainLoss: {} ValidLoss: {}".format(train_loss, eval_loss))
         print("Train: {}".format(acc_report['train']))
         print("Valid: {}".format(acc_report['eval']))
-
-        self.fail_log = {}
-        self.running_loss = {'train': [0, 0], 'eval': [0, 0]}
-        for name, n_classes in self.class_dict.items():
-            self.confusion_matrices['eval'][name] = np.zeros((n_classes, n_classes), dtype=np.int)
 
     def _prepare_next_epoch(self):
         """
@@ -288,7 +282,7 @@ class BasicLogger:
         self.fail_log = {}
         self.running_loss = {'train': [0, 0], 'eval': [0, 0]}
         for phase in ['train', 'eval']:
-            for name, n_classes in self.class_dict.items():
+            for name, n_classes in self.evaluator.items():
                 self.confusion_matrices[phase][name] = np.zeros((n_classes, n_classes), dtype=np.int)
 
     def _plot_loss(self, size=(12, 4), dpi=400):

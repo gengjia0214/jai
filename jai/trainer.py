@@ -143,7 +143,7 @@ class BasicTrainer:
                         if phase == 'train':
                             loss.backward()
                             self.optimizer.step()
-                            self.scheduler.step(None)  # weird warning if remove the None here
+                            self.scheduler.step(epoch=epoch)  # weird warning if remove the None here
             pbar_epoch.update(1)
         # last dummy epoch
-        logger.receive(epochs, batch=-1, phase='stop')
+        logger.receive(epochs-1, batch=-1, phase='stop')
