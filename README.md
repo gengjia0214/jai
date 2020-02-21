@@ -15,3 +15,6 @@ The main idea behind **jai** is to reduce the amount of time spent on building a
 ## Dev. Plan
 
 Implement anything popup in my head when I got time and coffee...
+
+## How to Use (not fully tested)
+
