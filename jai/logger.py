@@ -1,6 +1,6 @@
 from torch.nn import Module
 from torch import Tensor
-from .datahandler import DataClassDict
+from .dataset import DataClassDict
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -328,7 +328,7 @@ class BasicLogger:
         plt.subplot(3, 1, 3)
         plt.plot(epoch_loss['train'], label='Epoch Train Loss')
         plt.plot(epoch_loss['eval'], label='Epoch Validation Loss')
-        plt.legend(loc='top right')
+        plt.legend()
         plt.xlabel("Epoch")
         plt.ylabel("Epoch Loss")
         plt.show()

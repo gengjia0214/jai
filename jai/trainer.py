@@ -1,5 +1,6 @@
 from .logger import *
-from .augments import Augment
+from .augments import *
+from .dataset import *
 from tqdm.notebook import tqdm
 import torch as torch
 from torch.nn import Module
@@ -69,7 +70,7 @@ class BasicTrainer:
                 print("Scheduler state was loaded!")
 
     def train(self, train_dataloader: DataLoader, eval_dataloader: DataLoader, epochs: int, loss_func: Module,
-              logger: BasicLogger, augment: Augment = None):
+              logger: BasicLogger):
         """
         Train model
         :param train_dataloader: train data
@@ -77,7 +78,6 @@ class BasicTrainer:
         :param epochs: total number of epochs
         :param loss_func: loss function
         :param logger: logger
-        :param augment: augmentation class
         :return: void
         """
 
@@ -90,14 +90,24 @@ class BasicTrainer:
             raise NotImplemented("Currently only support basic logger.")
 
         data_loaders = {'train': train_dataloader, 'eval': eval_dataloader}
+
+        # fetch the augment class instance
+        wrapped_dataset = data_loaders['train'].dataset
+        assert isinstance(wrapped_dataset, JaiDataset)
+        augments = wrapped_dataset.augmentators
+
         pbar_epoch = tqdm(total=epochs, desc='Epoch')
         for epoch in range(epochs):
 
             for phase in ['train', 'eval']:
                 # TODO: try to refactor the augment, currently need to pass it to both the train method and the
                 #  dataset class. maybe refactor the split method in dataset
-                if augment:
-                    augment.switch_phase(phase)
+
+                # switch to the right setting for the phase
+                if augments is not None:
+                    # take one step
+                    augments.switch_phase(phase)
+                    augments.step(epoch, epochs)
                 if phase == 'train':
                     self.model.train()
                 else:
@@ -137,6 +147,3 @@ class BasicTrainer:
             pbar_epoch.update(1)
         # last dummy epoch
         logger.receive(epochs, batch=-1, phase='stop')
-
-
-

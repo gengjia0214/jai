@@ -7,8 +7,7 @@ import pandas as pd
 from tqdm.notebook import tqdm
 from torchvision import utils
 from matplotlib import pyplot as plt
-from torch.utils.data.dataset import Dataset, Subset
-from torch.utils.data.dataset import random_split
+from jai.dataset import JaiDataset, jai_split
 
 
 def extract_img_from_parquet(src_dir, dst_dir):
@@ -41,23 +40,47 @@ def extract_img_from_parquet(src_dir, dst_dir):
                 cv.imwrite(file_name, img, [cv.IMWRITE_PNG_COMPRESSION, 0])
 
 
-class BengaliTestData(Dataset):
+class BengaliParquetData(JaiDataset):
     """
     Dataset Class (Test Time) for Bengali Parquet Data.
+    TODO: Need to test this on server
     """
 
     HEIGHT = 137
     WIDTH = 236
 
-    def __init__(self, fp, tsfms):
+    def __init__(self, fp, tsfms, usage, ann_src=None, augmentators=None):
         """
         Constructor
         :param fp: file path(s), if a directory was provided, will read all parquet files from the directory
         :param tsfms: image preprocessing transformers
         """
+        super().__init__(augmentators)
+        self.ann = []
+        if usage == 'test':
+            pass
+        elif usage == 'train' and ann_src is not None:
+            # parse annotation
+            with open(file=ann_src) as csv_file:
+                reader = list(csv.DictReader(f=csv_file, fieldnames=['img_id', 'root', 'vowel', 'consonant',
+                                                                     'grapheme']))
+                row = 0
+                for entry in reader:
+                    if row > 0:
+                        self.ann.append(entry)
+                    row += 1
+        else:
+            raise Exception("Usage must be either train or eval. Annotation must be provided if the usage is train.")
+
+        df = None
+        for file in sorted(os.listdir(fp)):
+            if file.startswith(usage) and file.endswith('parquet'):
+                df_p = os.path.join(fp, file)
+                df = pd.read_parquet(df_p) if df is None else df.append(pd.read_parquet(df_p), ignore_index=True)
+                print("File {} loaded.".format(file))
 
         self.tsfms = tsfms
-        df = pd.read_parquet(fp)
+        self.usage = usage
         self.data_id = df.iloc[:, 0].values
         self.img_data = df.iloc[:, 1:].values.reshape(-1, self.HEIGHT, self.WIDTH).astype(np.uint8)
 
@@ -65,31 +88,48 @@ class BengaliTestData(Dataset):
         return len(self.img_data)
 
     def __getitem__(self, idx):
+
         img_id = self.data_id.iloc[idx, 0]
         img = self.img_data[idx]
+        y = None
+
+        if self.usage == 'train':
+            annotations = self.ann[idx]
+            if img_id != annotations['img_id']:
+                raise Exception("Image ID and idx did not match!")
+
+            root = int(annotations['root'])
+            vowel = int(annotations['vowel'])
+            consonant = int(annotations['consonant'])
+            y = torch.Tensor([root, vowel, consonant]).int()
+
         for tsf in self.tsfms:
             img = tsf(img)
 
-        return {'id': img_id, 'x': img}
+        img = self.augment(img)
+
+        return {"id": img_id, "x": img, "y": y}
 
 
-class BengaliLocalDataset(Dataset):
+class BengaliLocalDataset(JaiDataset):
     """
     Dataset Class for Bengali Local Data
     """
 
-    def __init__(self, img_src, ann_src, tsfms, augments=None):
+    def __init__(self, img_src, ann_src, tsfms, augmentators=None):
         """
         Constructor
         :param img_src: img src folder
         :param ann_src: annotation src file csv
         :param tsfms: transformation
-        :param augments: augmentations
+        :param augmentators: augmentations
         """
+
+        super().__init__(augmentators)
 
         # input image size
         self.tsfms = tsfms
-        self.augments = augments
+
         # field
         self.img_src = img_src
         self.ann = []
@@ -116,7 +156,7 @@ class BengaliLocalDataset(Dataset):
         train_len = int(self.__len__()*train_ratio)
         eval_len = self.__len__() - train_len
         lengths = [train_len, eval_len]
-        train_set, eval_set = random_split(self, lengths)
+        train_set, eval_set = jai_split(self, lengths)
         return {'train': train_set, 'eval': eval_set}
 
     def __getitem__(self, idx):
@@ -146,10 +186,7 @@ class BengaliLocalDataset(Dataset):
         for tsf in self.tsfms:
             img = tsf(img)
 
-        if self.augments is not None:
-            # for augment in self.augments:
-            # TODO: Refactor this to a list of augments
-            img = self.augments.proc(img)
+        img = self.augment(img)
 
         return {"id": img_id, "x": img, "y": y}
 
@@ -198,4 +235,3 @@ class BengaliLocalDataset(Dataset):
         plt.ioff()
         plt.imshow(grid_org.numpy().transpose(1, 2, 0))
         plt.show()
-

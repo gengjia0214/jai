@@ -3,7 +3,7 @@
 import setuptools
 
 
-with open('README.md') as f:
+with open('README.md', encoding='utf-8') as f:
     README = f.read()
 
 requirements = []
@@ -20,8 +20,9 @@ setuptools.setup(
     name='jai',
     license="BSD 3-Clause License",
     description='jai provide handy toolkit for building ai projects',
-    version='v0.0.6',
+    version='v0.0.7',
     long_description=README,
+    long_description_content_type='text/markdown',
     url='https://github.com/gengjia0214/jai.git',
     packages=setuptools.find_packages(),
     python_requires=">=3.6",
