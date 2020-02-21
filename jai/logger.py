@@ -240,8 +240,8 @@ class BasicLogger:
         """
 
         temp = {'train': {}, 'eval': {}}
-        total = 0
         for phase in ['train', 'eval']:
+            total = 0
             for name, confusion in self.confusion_matrices[phase].items():
                 confusion: np.ndarray
                 acc = round(np.sum(confusion.diagonal()) / confusion.sum(), 8)
