@@ -143,22 +143,6 @@ class BengaliLocalDataset(JaiDataset):
                     self.ann.append(entry)
                 row += 1
 
-    def split(self, train_ratio=0.8):
-        """
-        Split the dataset into two subset: train and eval
-        :param train_ratio: train ratio
-        :return: train eval sub set
-        """
-
-        if train_ratio <= 0 or train_ratio >= 1:
-            raise Exception("Train ratio should be between 0.1 ~ 0.99!")
-
-        train_len = int(self.__len__()*train_ratio)
-        eval_len = self.__len__() - train_len
-        lengths = [train_len, eval_len]
-        train_set, eval_set = jai_split(self, lengths)
-        return {'train': train_set, 'eval': eval_set}
-
     def __getitem__(self, idx):
         """
         Get an image with annotations

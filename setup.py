@@ -7,6 +7,7 @@ with open('README.md', encoding='utf-8') as f:
     README = f.read()
 
 requirements = []
+desc = "jai - A LEGO-style & PyTorch-based Deep Learning Library"
 with open('requirements.txt', mode='r') as req:
     reader = req.readlines()
     for pkg in reader:
@@ -19,7 +20,7 @@ setuptools.setup(
     author_email="gengjia0214@hotmail.com",
     name='jai',
     license="BSD 3-Clause License",
-    description='jai provide handy toolkit for building ai projects',
+    description=desc,
     version='v0.0.7',
     long_description=README,
     long_description_content_type='text/markdown',

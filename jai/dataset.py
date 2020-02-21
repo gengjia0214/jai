@@ -4,6 +4,7 @@ from torch.utils.data import Dataset
 
 def _accumulate(iterable, fn=lambda x, y: x + y):
     """Taken from PyTorch"""
+
     # _accumulate([1,2,3,4,5]) --> 1 3 6 10 15
     # _accumulate([1,2,3,4,5], operator.mul) --> 1 2 6 24 120
     it = iter(iterable)
@@ -35,8 +36,8 @@ def jai_split(dataset, lengths):
 
 class JaiDataset(Dataset):
     """
-    # TODO: refactor the string ID access to this parent class
-    Abstract class for Jai Dataset that support the augmentation
+    TODO: refactor the id access and string ID access to this parent class
+    Abstract class for Jai Dataset that supports augmentation
     """
 
     def __init__(self, augments=None, *args):
@@ -49,6 +50,11 @@ class JaiDataset(Dataset):
         raise NotImplemented("")
 
     def augment(self, img):
+        """
+        Don't forget to call this before getitem.
+        :param img:
+        :return:
+        """
 
         if self.augmentators is not None:
             # For augment in self.augments:
@@ -60,10 +66,27 @@ class JaiDataset(Dataset):
             else:
                 return self.augmentators.proc(img)
 
+    def split(self, train_ratio=0.8):
+        """
+        Split the dataset into two subset: train and eval
+        :param train_ratio: train ratio
+        :return: train eval sub set
+        """
+
+        if train_ratio <= 0 or train_ratio >= 1:
+            raise Exception("Train ratio should be between 0 ~ 1!")
+
+        train_len = int(self.__len__()*train_ratio)
+        eval_len = self.__len__() - train_len
+        lengths = [train_len, eval_len]
+        train_set, eval_set = jai_split(self, lengths)
+        return {'train': train_set, 'eval': eval_set}
+
 
 class JaiSubset(JaiDataset):
     """
     Jai-style Subset
+    TODO: refactor the string ID access to make it compatible with parent class
     """
 
     def __init__(self, dataset, indices, augments=None):
