@@ -55,7 +55,7 @@ class BengaliParquetData(JaiDataset):
         :param fp: file path(s), if a directory was provided, will read all parquet files from the directory
         :param tsfms: image preprocessing transformers
         """
-        super().__init__(augmentators)
+        super().__init__(tsfms=tsfms, augments=augmentators)
         self.ann = []
         if usage == 'test':
             pass
@@ -123,7 +123,7 @@ class BengaliLocalDataset(JaiDataset):
         :param augmentators: augmentations
         """
 
-        super().__init__(augmentators)
+        super().__init__(tsfms=tsfms, augments=augmentators)
 
         # input image size
         self.tsfms = tsfms
