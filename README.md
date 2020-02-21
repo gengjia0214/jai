@@ -4,6 +4,8 @@ Author: Jia Geng
 
 Email: jxg570@miami.edu | gjia0214@hotmail.com
 
+PyPI: https://pypi.org/project/jai/
+
 ## Introduction
 
 *Deep learning is fun. What not fun is the pipeline digging and rigging. Why can't we just enjoy the process
