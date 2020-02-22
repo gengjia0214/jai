@@ -122,7 +122,7 @@ For some functions that takes hyper-parameters, you need to use `paritial(func)`
     ```
 
 4. **Prepare the optimizer and scheduler.** The easiest way is just to grab the optimizer and scheduler from PyTorch. 
-You can also implement your own. But make sure use the PyTorch style. Same, use the partial function!
+You can also implement your own. But make sure use the PyTorch style. Also, prepare them in partial function if you need to specify the hyperparameters!
     
     E.g.
     ```
@@ -150,7 +150,7 @@ You can also implement your own. But make sure use the PyTorch style. Same, use 
    ``` 
 
 6. **Prepare the Logger.** You need to prepare a clean directory for receiving log files, 
-a prefix string for identifying your trial, and a `ClassDict` for specifying your encoding.
+a prefix string for identifying your trial, and a `Evaluator` for specifying your encoding.
 `keep='one_best` and it will only export the best model and overwrite. 
 `keep='all_best'` will export all encountered best models.
     
