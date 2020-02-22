@@ -30,14 +30,17 @@ class BasicTrainer:
         self.scheduler = scheduler
         self.device = device
         self.verbose = verbose
+        self.next_epoch = 0
 
-    def load_model_state(self, state_dict: dict):
+    def load_model_state(self, state_dict: dict, last_completed_epoch):
         """
         Load model state dict
         :param state_dict: model state dict
+        :param last_completed_epoch: last completed epohc
         :return: void
         """
 
+        self.next_epoch = last_completed_epoch + 1
         self.model: Module
         self.model.load_state_dict(state_dict)
 
@@ -97,7 +100,7 @@ class BasicTrainer:
         augments = wrapped_dataset.augmentators
 
         pbar_epoch = tqdm(total=epochs, desc='Epoch')
-        for epoch in range(epochs):
+        for epoch in range(self.next_epoch, epochs):
 
             for phase in ['train', 'eval']:
                 # TODO: try to refactor the augment, currently need to pass it to both the train method and the
