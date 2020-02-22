@@ -4,6 +4,7 @@ A bit of everything developed by the mighty kagglers and tweaked by me.
 
 from fastai.basics import *
 import torchvision.models as models
+from jai.sota.activation import *
 
 
 class Outlet(nn.Module):

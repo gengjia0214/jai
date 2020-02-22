@@ -1,36 +1,37 @@
+"""
+SOTA Activations
+
+Currently Supported Sota Activations
+- Mish https://arxiv.org/abs/1908.08681
+"""
+
+
 import torch
+from torch.nn import Module
+import torch.nn.functional as F
 
 
-class MishFunction(torch.autograd.Function):
+class Mish(Module):
     """
-    I forgot where i got this...
+    A modified implementation of
+    Mish: A Self Regularized Non-Monotonic Neural Activation Function by Misra
+    ref: https://arxiv.org/abs/1908.08681
+    org repo: https://github.com/digantamisra98/Mish.git
+
+    mish(x) = x * tanh(softplus(x)) = x * tanh(ln(1 + exp(x)))
     """
 
-    @staticmethod
-    def forward(ctx, x):
-        ctx.save_for_backward(x)
-        return x * torch.tanh(F.softplus(x))   # x * tanh(ln(1 + exp(x)))
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        x = ctx.saved_variables[0]
-        sigmoid = torch.sigmoid(x)
-        tanh_sp = torch.tanh(F.softplus(x))
-        return grad_output * (tanh_sp + x * sigmoid * (1 - tanh_sp * tanh_sp))
-
-
-class Mish(nn.Module):
-    """
-    I forgot where i got this...
-    """
+    def __init__(self, inplace=False):
+        super(Mish, self).__init__()
+        self.inplace = inplace
 
     def forward(self, x):
-        return MishFunction.apply(x)
+
+        x = x * torch.tanh(F.softplus(x))
+        return x
+
+    def extra_repr(self):
+        inplace_str = 'inplace=True' if self.inplace else ''
+        return inplace_str
 
 
-def to_Mish(model):
-    for child_name, child in model.named_children():
-        if isinstance(child, nn.ReLU):
-            setattr(model, child_name, Mish())
-        else:
-            to_Mish(child)
