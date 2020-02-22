@@ -18,9 +18,13 @@ The main idea behind **jai** is to reduce the amount of time spent on building a
 
 Implement anything popped up in my head when I got time and coffee...
 
-## Library Walk Through 
+## Installation
 
-`pip install jai` (The library is still in early stage. A lot more of functions and tools will be implemented and tested soon and in the future.)
+`pip install jai` 
+
+The library is still in early stage. A lot more of functions and tools will be implemented and tested soon and in the future.
+
+## Library Walk Through 
 
 `jai.dataset.py` provides abstract dataset classes that inherit the PyTorch DataSet class. 
 The difference is that jai.dataset supports data augmentation and processing.
