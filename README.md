@@ -45,9 +45,10 @@ These logger classes can be attached to the trainer during the training stage an
 `jai.arch.py` (will) provide handy way to modify popular and vanilla deep learning architectures to make the
  architecture compatible with the jai framework.
 
-`jai.kaggler` (will) provides data pipelining solutions, toolbox for general or selected Kaggle project development.
+`jai.kaggler` (will) provide data pipelining solutions, toolbox for general or selected Kaggle project development.
 It will also collect some useful tools/models from the kagglers.
  
+ `jai.sota` (will) provide some state-of-the-art techniques such as optmizers, schedulers, etc. that is compatible with the jai framework.
 
 ## Things Need to be Prepared before Use (not fully tested)
 
