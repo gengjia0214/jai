@@ -89,7 +89,7 @@ class BengaliParquetData(JaiDataset):
 
     def __getitem__(self, idx):
 
-        img_id = self.data_id.iloc[idx]
+        img_id = self.data_id[idx]
         img = self.img_data[idx]
         y = None
 
