@@ -21,7 +21,7 @@ setuptools.setup(
     name='jai',
     license="BSD 3-Clause License",
     description=desc,
-    version='v0.0.9',
+    version='v0.0.9.1',
     long_description=README,
     long_description_content_type='text/markdown',
     url='https://github.com/gengjia0214/jai.git',
