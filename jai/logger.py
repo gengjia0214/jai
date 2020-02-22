@@ -10,12 +10,12 @@ import os
 
 class BasicLogger:
 
-    def __init__(self, log_dst: str, prefix: str, evaluator: Evaluator, keep='one_best',
+    def __init__(self, log_dst: str, prefix: str, evaluator: Evaluator, resume: bool, keep='one_best',
                  verbose=False):
 
         if keep not in ['one_best', 'all_best']:
             raise NotImplemented("Currently only support saving the one best or all best models")
-
+	
         self.verbose = verbose
         self.keep = keep
         self.curr_epoch = 0
@@ -24,10 +24,11 @@ class BasicLogger:
         self.confusion_dst = os.path.join(log_dst, 'confusion')
         self.fail_log_dst = os.path.join(log_dst, 'failure_log')
         loss_log_dst = os.path.join(log_dst, 'loss_log')
-
-        for log_dir in [self.model_dst, self.confusion_dst, self.fail_log_dst, loss_log_dst]:
-            if not os.path.isdir(log_dir):
-                os.mkdir(log_dir)
+	
+		if not resume:
+			for log_dir in [self.model_dst, self.confusion_dst, self.fail_log_dst, loss_log_dst]:
+				if not os.path.isdir(log_dir):
+					os.mkdir(log_dir)
 
         blt_p = os.path.join(loss_log_dst, "{}_batch_train_log.csv".format(prefix))
         ble_p = os.path.join(loss_log_dst, "{}_batch_eval_log.csv".format(prefix))
@@ -42,8 +43,9 @@ class BasicLogger:
         for phase in ['train', 'eval']:
             for name, n_classes in self.evaluator.items():
                 self.confusion_matrices[phase][name] = np.zeros((n_classes, n_classes), dtype=np.int)
-
-        self._create_logs()
+	
+		if not resume:
+			self._create_logs()
 
     def receive(self, epoch, batch, phase, loss: torch.Tensor = None, outputs=None, truths=None, entry_ids=None):
         """
@@ -268,7 +270,7 @@ class BasicLogger:
         for phase in ['train', 'eval']:
             for name, acc in acc_dict[phase].items():
                 if name != 'avg':
-                    acc_report[phase] += "Predictor {} Acc: {}; ".format(name, acc)
+                    acc_report[phase] += "Predictor {} Score: {}; ".format(name, acc)
             acc_report[phase] += " AVG Acc: {:<10}".format(acc_dict[phase]['avg'])
 
         print("\n===================================\n")
