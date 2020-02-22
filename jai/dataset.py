@@ -1,4 +1,5 @@
 from torch import randperm
+import torch
 from torch.utils.data import Dataset
 import numpy as np
 
@@ -80,13 +81,15 @@ class JaiDataset(Dataset):
             else:
                 return self.augmentators.proc(img)
 
-    def split(self, train_ratio=0.8):
+    def split(self, train_ratio=0.8, seed=None):
         """
         Split the dataset into two subset: train and eval
         :param train_ratio: train ratio
         :return: train eval sub set
         """
 
+        if seed is not None:
+            torch.random.manual_seed(seed)
         if train_ratio <= 0 or train_ratio >= 1:
             raise Exception("Train ratio should be between 0 ~ 1!")
 

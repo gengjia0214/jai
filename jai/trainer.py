@@ -24,7 +24,7 @@ class BasicTrainer:
         assert isinstance(optimizer, partial), "optimizer should be a partial func with all args except the " \
                                                "parameters."
         assert isinstance(scheduler, partial), "scheduler should be a partial func with all args except the optimizer."
-		
+
         self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
@@ -37,7 +37,7 @@ class BasicTrainer:
         :param state_dict: model state dict
         :return: void
         """
-		
+
         self.model: Module
         self.model.load_state_dict(state_dict)
 
@@ -49,7 +49,6 @@ class BasicTrainer:
         :param scheduler_state: scheduler state dict
         :return: void
         """
-		
 
         self.model: Module
         self.model.to(self.device)
