@@ -133,16 +133,20 @@ You can also implement your own. But make sure use the PyTorch style. Same, use 
     scheduler = partial(CosineAnnealingLR, T_max=100)
     ```
 
-5. **Prepare the `jai.dataset.DataClassDict`.** This is for the purpose of generating logs accordingly.
-   E.g. if your model is trying to predict the type of dog in image.
+5. **Prepare the `jai.dataset.Evaluator`.** This is for the purpose of generating logs using specified encoding and score system.
     - `names=` is for hashing the predictors
-    - `n_classes=` is for indicating how many possible classes for each predictor.
-   
+    - `n_classes=` indicates how many possible classes for each predictor.
+    - `criteria=` indicates which criteria will be used for caculating scores (precision, recall, accurarcy)
+    - `avg=` indicates how to average the scores across different classes (micro, macro)
+    - `weights=` is used when you have multiple output node in your models and how do you want to combine the scores for each predictor.   
+    
+    E.g. if your model is trying to predict the type of dog and whether the dog is walked by a human in an image.
    ```
    from jai.dataset import *
    
-   # say your training data have 10 types of dog 
-   class_dict = DataClassDict(names=['dog_type'], n_classes=[10])
+   # say your training data have 10 types of dog and binary output for whether human in it or not
+   # you want to use macro precision and more concerned about has_human
+   evaluator = Evaluator(names=['dog_type', 'has_human'], n_classes=[10, 2], criteria='precision', avg='macro', weights=[1, 2])
    ``` 
 
 6. **Prepare the Logger.** You need to prepare a clean directory for receiving log files, 
@@ -154,8 +158,8 @@ a prefix string for identifying your trial, and a `ClassDict` for specifying you
     ```
     from jai.logger import *
     
-   # keep
-    logger = BasicLogger(log_dst, prefix, class_dict, keep='one_best')
+    # keep all best models along the training process
+    logger = BasicLogger(log_dst, prefix, evaluator,'all_best')
     ```
 
 ## Just Assemble It!
@@ -179,7 +183,7 @@ scheduler = partial(CosineAnnealingLR, T_max=100)
 
 # logger and predictor encoder
 class_dict = DataClassDict(names=['dog_type'], n_classes=[10])
-logger = BasicLogger(log_dst, prefix, class_dict, keep='one_best')
+logger = BasicLogger(log_dst, prefix, evaluator,'all_best')
 ```
 
 To Train Your Model:
