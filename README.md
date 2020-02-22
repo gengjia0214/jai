@@ -155,7 +155,9 @@ You can also implement your own. But make sure use the PyTorch style. Also, prep
    ``` 
 
 6. **Prepare the Logger.** You need to prepare a clean directory for receiving log files, 
-a prefix string for identifying your trial, and a `Evaluator` for specifying your encoding.
+a prefix string for identifying your trial, and a `Evaluator` 
+`resume=False` will tell the lib that you are training a new model so it will create a batch of new log files.
+`resume=True` will tell the lib that you are continue training your model, it will write on the old log files
 `keep='one_best` and it will only export the best model and overwrite. 
 `keep='all_best'` will export all encountered best models.
     
@@ -164,7 +166,7 @@ a prefix string for identifying your trial, and a `Evaluator` for specifying you
     from jai.logger import *
     
     # keep all best models along the training process
-    logger = BasicLogger(log_dst, prefix, evaluator,'all_best')
+    logger = BasicLogger(log_dst, prefix, evaluator,resume=False, keep='all_best')
     ```
 
 ## Just Assemble It!
@@ -188,7 +190,7 @@ scheduler = partial(CosineAnnealingLR, T_max=100)
 
 # logger and predictor encoder
 class_dict = DataClassDict(names=['dog_type'], n_classes=[10])
-logger = BasicLogger(log_dst, prefix, evaluator,'all_best')
+logger = BasicLogger(log_dst, prefix, evaluator, resume=False, keep='all_best')
 ```
 
 To Train Your Model:
@@ -196,14 +198,14 @@ To Train Your Model:
 ```
 from jai.trainer import *
 
-train_set, eval_set = dataset.split(train_ratio=0.8)  # split to 0.8 : 0.2
+train_set, eval_set = dataset.split(train_ratio=0.8, seed=2020)  # split to 0.8 : 0.2 with seed 2020
 train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
 eval_loader = DataLoader(eval_Set, batch_size=32, shuffle=False)
 trainer = BasicTrainer(model, optimizer, scheduler)
 
 trainer.initialize()
 
-trainer.train(train_loader, eval_loader, epochs=30, loss_func=loss, logger=logger)
+trainer.train(train_loader, eval_loader, epochs=50, loss_func=loss, logger=logger)
 ```
 
 Now you are:
@@ -220,8 +222,26 @@ Now you are:
 After the training is done. You can do: `logger.plot('loss')` to check your training progress.
 
 
+## Just Re-Assemble It!
 
+Often you might want to continue the training process. You can do it by
 
+```
+# read all the state dict (find it under your log_dst/model)
+model_state = torch.load(model_path)
+optimizer_state = torch.load(optimizer_path)
+scheduler_state = torch.load(scheduler_path)
+
+# load the check points
+trainer.load_model_state(model_state)
+trainer.initialize(optimizer_state, scheduler_state)
+
+# prepare a logger with same log_dst but set the resume to True
+logger = BasicLogger(log_dst, prefix, evaluator, resume=True, keep='all_best')
+
+# train your model
+trainer.train(train_loader, eval_loader, epochs=50, loss_func=loss, logger=logger)
+```
 
 
 
