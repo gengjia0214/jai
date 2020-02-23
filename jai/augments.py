@@ -137,11 +137,13 @@ class AugF:
             mask[:, s:t] = 0
 
         # rotate
+        if rotate != 0:
+            r = np.random.randint(rotate)
+            mask = Image.fromarray(np.uint8(mask))
+            mask = mask.rotate(r)
+            mask = np.asarray(mask)
 
-        r = np.random.randint(rotate)
-        mask = Image.fromarray(np.uint8(mask))
-        mask = mask.rotate(r)
-        mask = np.asarray(mask)
+        # recover the shape of the mask
         mask = mask[(mask_l-h)//2:(mask_l-h)//2+h, (mask_l-w)//2:(mask_l-w)//2+w]
 
         # keep the black area and drop the gray area

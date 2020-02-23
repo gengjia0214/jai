@@ -1,5 +1,4 @@
 from .logger import *
-from .augments import *
 from .dataset import *
 from tqdm.notebook import tqdm
 import torch as torch
@@ -9,9 +8,13 @@ from torch.utils.data import DataLoader
 from torch.optim.optimizer import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler as Scheduler
 
+# TODO: make the reduce on plateau compatible
+# TODO: try lighter model and resnet34 or resnet50
+# TODO: try less dropout
+
 
 class BasicTrainer:
-    # TODO: refactor augmentation. Gradually change aug prob.
+
     def __init__(self, model: Module, optimizer: partial, scheduler: partial = None,
                  device=torch.device('cuda'), verbose=False):
         """
@@ -103,8 +106,6 @@ class BasicTrainer:
         for epoch in range(self.next_epoch, epochs):
 
             for phase in ['train', 'eval']:
-                # TODO: try to refactor the augment, currently need to pass it to both the train method and the
-                #  dataset class. maybe refactor the split method in dataset
 
                 # switch to the right setting for the phase
                 if augments is not None:

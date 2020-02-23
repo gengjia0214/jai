@@ -29,6 +29,9 @@ class BasicLogger:
             for log_dir in [self.model_dst, self.confusion_dst, self.fail_log_dst, loss_log_dst]:
                 if not os.path.isdir(log_dir):
                     os.mkdir(log_dir)
+                else:
+                    raise IOError("Directory {} already exist. Make sure the log_dst is a clean directory!".format(
+                        log_dir))
 
         blt_p = os.path.join(loss_log_dst, "{}_batch_train_log.csv".format(prefix))
         ble_p = os.path.join(loss_log_dst, "{}_batch_eval_log.csv".format(prefix))
@@ -79,6 +82,7 @@ class BasicLogger:
             # if done with all epochs stop
             if phase == 'stop':
                 self._report_epoch(train_loss, eval_loss, temp)
+                self.curr_epoch = epoch
                 return better
             else:
                 self._report_epoch(train_loss, eval_loss, temp)
@@ -103,16 +107,14 @@ class BasicLogger:
         else:
             raise NotImplemented("Currently only support plotting the losses.")
 
-    def get_failures(self, epoch='best'):
+    @staticmethod
+    def get_failures(fp):
         """
         Get the failures of an epoch
-        :param epoch: epoch
+        :param fp: file path
         :return: list of failed classification (ID)
         """
-        fn = "{}_failures_epoch={}.csv".format(self.prefix, epoch)
-        fp = os.path.join(self.fail_log_dst, fn)
-        if not os.path.isfile(fp):
-            raise FileExistsError("File {} does not exist. Check whether the epoch is correct.".format(epoch))
+
         failures = []
         with open(fp, mode='r') as csv_file:
             reader = csv.reader(csv_file)
@@ -127,7 +129,7 @@ class BasicLogger:
         if self.keep == 'one_best':
             name = 'best'
         else:
-            name = self.curr_epoch
+            name = self.curr_epoch - 1
 
         mp = os.path.join(self.model_dst, "{}_model_epoch={}.pth".format(self.prefix, name))
         torch.save(model.state_dict(), mp)
