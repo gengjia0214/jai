@@ -7,6 +7,7 @@ from functools import partial
 from torch.utils.data import DataLoader
 from torch.optim.optimizer import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler as Scheduler
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 # TODO: make the reduce on plateau compatible
 # TODO: try lighter model and resnet34 or resnet50
@@ -68,7 +69,8 @@ class BasicTrainer:
 
         if self.scheduler:
             self.scheduler = self.scheduler(self.optimizer)
-            assert isinstance(self.scheduler, Scheduler), "fail to initialize the scheduler, check the input!"
+            assert isinstance(self.scheduler, Scheduler) or isinstance(self.scheduler, ReduceLROnPlateau), \
+                "fail to initialize the  scheduler, check the input!"
 
         if scheduler_state:
             self.scheduler.load_state_dict(scheduler_state)
@@ -88,7 +90,8 @@ class BasicTrainer:
         """
 
         assert isinstance(self.optimizer, Optimizer), "Need to initialize before training!"
-        assert isinstance(self.scheduler, Scheduler), "Need to initialize before training!"
+        assert isinstance(self.scheduler, Scheduler) or isinstance(self.scheduler, ReduceLROnPlateau), \
+            "Need to initialize before training!"
         assert isinstance(loss_func, Module), "Loss function should be implemented as torch Module!"
         assert isinstance(logger, BasicLogger), "logger should be a Logger Instance!"
 
@@ -130,7 +133,7 @@ class BasicTrainer:
                     with torch.set_grad_enabled(phase == 'train'):
                         outputs = self.model(inputs)
                         loss = loss_func(outputs, truths)  # the loss function should work with batch data
-
+                        loss: torch.Tensor
                         # log the data
                         # support collecting data id
                         entry_ids = None
@@ -147,7 +150,10 @@ class BasicTrainer:
                         if phase == 'train':
                             loss.backward()
                             self.optimizer.step()
-                            self.scheduler.step(epoch=epoch)  # weird warning if remove the None here
+                            if isinstance(self.scheduler, ReduceLROnPlateau):
+                                self.scheduler.step(loss.detach())
+                            else:
+                                self.scheduler.step(epoch=epoch)  # weird warning if remove the None here
             pbar_epoch.update(1)
         # last dummy epoch
         logger.receive(epochs, batch=-1, phase='stop')

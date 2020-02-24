@@ -1,4 +1,4 @@
-from .arch import *
+from .architect import *
 from .trainer import *
 from .dataset import *
 from .improc import *

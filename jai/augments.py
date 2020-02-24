@@ -98,7 +98,7 @@ class AugF:
         |----|    | d
         |blk_|__r_|
 
-        Paper suggested hyperparameters"
+        Paper suggested hyper-parameters"
         d1 = 94, d2 = 244
         r = 0.6 for ImageNet (complex image) 0.4 for CIFAR (simple image)
 
@@ -113,7 +113,7 @@ class AugF:
         """
 
         h, w = img.shape[1], img.shape[2]
-        mask_l = math.ceil((math.sqrt(h*h + w*w))) # mask should be larger than iamge
+        mask_l = math.ceil((math.sqrt(h*h + w*w)))  # mask should be larger than iamge
         d = np.random.randint(d1, d2)  # draw a random d (grid unit length)
 
         l_gray = math.ceil(d * r)  # length of the gray area
@@ -153,16 +153,4 @@ class AugF:
         mask = mask.expand_as(img)  # align the mask with the image
         img = img * mask
         return img
-
-
-
-
-
-
-
-
-
-
-
-
 

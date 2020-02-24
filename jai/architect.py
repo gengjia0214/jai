@@ -1,11 +1,12 @@
 """
 Architecture Manipulator.
+All Methods with Exp suffix is not tested
 """
 
-from torch.nn import Module
+import torch.nn as nn
 
 
-def replace(model: Module, old, new, depth=-1):
+def replace(model: nn.Module, old, new, depth=-1):
     """
     Search through a neural nets and replace one type of Module with another type of Module
     :param model: neural nets
@@ -29,3 +30,13 @@ def replace(model: Module, old, new, depth=-1):
 
     return depth
 
+
+class ReducedPowerResNetExp:
+    """
+    Experimental
+    """
+
+    def __init__(self, r, n_channels, base_model):
+        pass
+
+#

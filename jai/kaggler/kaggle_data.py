@@ -200,7 +200,7 @@ class BengaliLocalDataset(JaiDataset):
             img_idx = int(img_id[img_id.find('_') + 1:])
             f_idx = int(img_idx // 1e4)
             img_p = os.path.join(self.img_src, "{}".format(f_idx), "{}.png".format(img_id))
-            org_img = (255 - cv.imread(img_p, cv.IMREAD_GRAYSCALE)).astype(np.float32) / 255
+            org_img = (cv.imread(img_p, cv.IMREAD_GRAYSCALE)).astype(np.float32) / 255
             batch_org.append(torch.from_numpy(org_img)[None, :, :])
 
         grid_pro = utils.make_grid(batch_processed, nrow=n_row)

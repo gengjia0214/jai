@@ -85,6 +85,7 @@ class JaiDataset(Dataset):
         """
         Split the dataset into two subset: train and eval
         :param train_ratio: train ratio
+        :param seed: seed for splitting the dataset
         :return: train eval sub set
         """
 
