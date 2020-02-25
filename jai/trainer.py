@@ -9,9 +9,7 @@ from torch.optim.optimizer import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler as Scheduler
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-# TODO: make the reduce on plateau compatible
-# TODO: try lighter model and resnet34 or resnet50
-# TODO: try less dropout
+# TODO: implement the stepwise increase of p + plateau version of augmentation
 
 
 class BasicTrainer:
@@ -68,7 +66,7 @@ class BasicTrainer:
                 print("Optimizer state was loaded!")
 
         if self.scheduler:
-            self.scheduler = self.scheduler(self.optimizer)
+            self.scheduler = self.scheduler(optimizer=self.optimizer)
             assert isinstance(self.scheduler, Scheduler) or isinstance(self.scheduler, ReduceLROnPlateau), \
                 "fail to initialize the  scheduler, check the input!"
 
@@ -151,9 +149,10 @@ class BasicTrainer:
                             loss.backward()
                             self.optimizer.step()
                             if isinstance(self.scheduler, ReduceLROnPlateau):
-                                self.scheduler.step(loss.detach())
-                            else:
+                                self.scheduler.step(metrics=loss)
+                            elif isinstance(self.scheduler, Scheduler):
                                 self.scheduler.step(epoch=epoch)  # weird warning if remove the None here
+
             pbar_epoch.update(1)
         # last dummy epoch
         logger.receive(epochs, batch=-1, phase='stop')
