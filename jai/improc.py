@@ -176,6 +176,17 @@ def add_bgnoise(mu, sigma, img):
     return img
 
 
+def dummy_rgb(img):
+    """
+    Dummy method to conver a grayscale to rgb (for testing only)
+    :param img:
+    :return:
+    """
+
+    img = np.stack((img, img, img), axis=2)
+    return img
+
+
 def to_tensor(img, dtype=torch.float32):
     """
     To tensor in float
