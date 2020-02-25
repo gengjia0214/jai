@@ -1,5 +1,6 @@
 """
 Image Augmentation Classes
+TODO: implement the cutout
 """
 
 from torch import Tensor
@@ -154,3 +155,6 @@ class AugF:
         img = img * mask
         return img
 
+    @staticmethod
+    def cutout(img: Tensor):
+        pass
