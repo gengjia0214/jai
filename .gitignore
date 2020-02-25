@@ -9,6 +9,7 @@ __pycache__/
 *$py.class
 .idea/
 test/
+.npy
 # C extensions
 *.so
 
