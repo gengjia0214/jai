@@ -62,7 +62,6 @@ class BasicLogger:
         :param entry_ids: entry id if applicable
         :return: void
         """
-
         better = False
         if epoch != self.curr_epoch and (phase in ['train', 'stop']):
             # last epoch completed check whether have better result
@@ -97,7 +96,6 @@ class BasicLogger:
 
         # log the predictions to the confusion matrix (if at eval phase)
         self._log_predictions(phase, outputs, truths, entry_ids)
-
         return better
 
     def plot(self, item, size=(12, 8), dpi=400):
@@ -223,6 +221,7 @@ class BasicLogger:
         # if there is only one predictor
         if truths.ndim == 1:
             truths = [truths]  # just wrap with a list, this is like N_pred x B ~ 1xB
+            outputs = [outputs]
         else:  # if there are multiple predictor, need to transpose the truth to N_pred x B
             truths = truths.transpose(1, 0)
         for i, name in enumerate(self.evaluator.names):
@@ -231,7 +230,6 @@ class BasicLogger:
             predictions = outputs[i].argmax(-1).detach().cpu().int().tolist()
             batch_truths = truths[i].detach().cpu().int().tolist()
             batch_predictions = predictions
-
             # TODO: this might have a parallel implementation
             for j, (pred, tru) in enumerate(zip(batch_predictions, batch_truths)):
                 self.confusion_matrices[phase][name][pred, tru] += 1

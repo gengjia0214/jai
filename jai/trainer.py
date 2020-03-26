@@ -100,8 +100,10 @@ class BasicTrainer:
 
         # fetch the augment class instance
         wrapped_dataset = data_loaders['train'].dataset
-        assert isinstance(wrapped_dataset, JaiDataset)
-        augments = wrapped_dataset.augmentators
+        if isinstance(wrapped_dataset, JaiDataset):
+            augments = wrapped_dataset.augmentators
+        else:
+            augments = None
 
         pbar_epoch = tqdm(total=epochs, desc='Epoch')
         for epoch in range(self.next_epoch, epochs):
@@ -122,8 +124,13 @@ class BasicTrainer:
                 for i, mini_batch in tqdm(enumerate(data_loaders[phase]), total=len(data_loaders[phase]),
                                           desc='Epoch {} Phase {}'.format(epoch, phase)):
                     # these should already be in tensor format
-                    inputs = mini_batch['x'].to(self.device)
-                    truths = mini_batch['y'].to(self.device)
+                    if isinstance(wrapped_dataset, JaiDataset):
+                        inputs = mini_batch['x'].to(self.device)
+                        truths = mini_batch['y'].to(self.device)
+                    else:  # this is compatible with torchvision dataset
+                        inputs = mini_batch[0].to(self.device)
+                        truths = mini_batch[1].to(self.device)
+
                     # zero the parameter gradients
                     self.optimizer.zero_grad()
 
