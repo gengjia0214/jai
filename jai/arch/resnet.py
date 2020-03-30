@@ -1,7 +1,8 @@
 from collections import OrderedDict
 from torch import Tensor
-import torch
 import torch.nn as nn
+from .jarch import *
+import torch
 
 
 """
@@ -9,12 +10,12 @@ input image 49x49x3
 
 input       layer       ksize   stride  pad     filter  ratio       Note
 
-49x49x3     conv        5x5     1       2       32      75->32      no stride to prevent info loss
+49x49x3     conv        5x5(3x3)1       2       32      75->32      no stride to prevent info loss
 49x49x32    bn          NA      NA      NA      NA      NA          
 49x49x32    relu        NA      NA      NA      NA      NA
-49x49x32    maxpool     2x2     1       1       NA      4->1        no stride to prevent info loss
+49x49x32    maxpool     2x2     1       1       NA      4->1        no stride to prevent info loss (optional)
 
-49x49x32    conv        3x3     1       1       64      9->2        still working with original size                   
+49x49x32    conv        3x3     1       1       64      9->2        still working with original spacial size                   
 49x49x64    bn          NA      NA      NA      NA      NA
 49x49x64    relu        NA      NA      NA      NA      NA
 49x49x64    conv        3x3     1       1       64      9->1                         
@@ -65,7 +66,7 @@ def get_settings(mode, n_classes):
 
     if mode == 'preserve':
         # block_name, in_channels, out_channels, conv_size, conv_stride, pool_size, pool_stride
-        settings['start'] = [StartBlock, 'start_block', 3, 32, 5, 1, 2, 1]
+        settings['start'] = [StartBlock, 'start_block', 3, 32, 3, 1, 0, 0]
         # block_name, n_stacks, in_channels, space_reduce, feature_expand, mode
         settings['block1'] = [BasicBlock, 'block1', 2, 32, 1, 2, 'original']
         settings['block2'] = [BasicBlock, 'block2', 2, 64, 2, 2, 'original']
@@ -89,9 +90,12 @@ class StartBlock(nn.Module):
         conv0 = conv(in_channels, out_channels, conv_size, conv_stride)
         bn = nn.BatchNorm2d(out_channels)  # takes in the n_features as input to set up learnable params
         relu = nn.ReLU(inplace=True)   # relu will modify con inplace
-        maxpool = nn.MaxPool2d(kernel_size=pool_size, stride=pool_stride, padding=pool_size//2)
+        layers = [conv0, bn, relu]
+        if pool_size != 0:
+            maxpool = nn.MaxPool2d(kernel_size=pool_size, stride=pool_stride, padding=pool_size//2)
+            layers.append(maxpool)
 
-        self.__setattr__(block_name, nn.Sequential(conv0, bn, relu, maxpool))
+        self.__setattr__(block_name, nn.Sequential(*layers))
 
     def forward(self, x):
 
@@ -184,7 +188,7 @@ class Flatten(nn.Module):
         self.axis = axis
 
     def forward(self, x: Tensor):
-        x = torch.flatten(x, self.axis)
+        x = x.view(x.shape[0], -1)
         return x
 
 
@@ -210,11 +214,15 @@ class AvgPoolHead(nn.Module):
         return x
 
 
-class ResNet(nn.Module):
+class ResNet(JaiArch):
+    """
+    ResNet Assembler
+    """
 
     def __init__(self, settings):
         super().__init__()
         self.layers = []
+        self.layer_params = {}
 
         for key in settings:
             config = settings[key]
@@ -223,6 +231,10 @@ class ResNet(nn.Module):
             params = config[1:]
             self.layers.append(block_name)
             self.__setattr__(block_name, block(*params))
+            self.layer_params[block_name] = self.__getattr__(block_name).parameters()
+
+    def get_layer_names(self):
+        return self.layers
 
     def forward(self, x):
 
@@ -230,3 +242,26 @@ class ResNet(nn.Module):
             x = self.__getattr__(block_name)(x)
         return x
 
+    def freeze(self, block_name):
+
+        if isinstance(block_name, list):
+            for bn in block_name:
+                for param in self.layer_params[bn]:
+                    param.requires_grad = False
+                print("Froze {} param.".format(bn))
+        else:
+            for param in self.layer_params[block_name]:
+                param.requires_grad = False
+            print("Froze {} param.".format(block_name))
+
+    def unfreeze(self, block_name):
+
+        if isinstance(block_name, list):
+            for bn in block_name:
+                for param in self.layer_params[bn]:
+                    param.requires_grad = True
+                print("Unfroze {} param.".format(bn))
+        else:
+            for param in self.layer_params[block_name]:
+                param.requires_grad = True
+            print("Unfroze {} param.".format(block_name))
