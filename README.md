@@ -1,8 +1,9 @@
 # JAI - Just Assemble It!
 
 
-[![GitHub Release](https://img.shields.io/badge/Language-Python-<blue>.svg)](https://sh
-[![GitHub Release](https://img.shields.io/badge/Version-0.1-<COLOR>.svg)](https://shields.io/)
+[![GitHub Release](https://img.shields.io/badge/Language-Python-blue.svg)](https://shields.io/)
+[![GitHub Release](https://img.shields.io/badge/Status-Beta-yellow.svg)](https://shields.io/)
+[![GitHub Release](https://img.shields.io/badge/Version-0.1-green.svg)](https://shields.io/)
 
 
 Author: Jia Geng
