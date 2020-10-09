@@ -1,4 +1,15 @@
 # temp
+<<<<<<< 6f3823d942e484f87ee98817ef6f474e0566f50e
+=======
+setup.py
+res/
+depreciated/
+projects/
+roti/
+det/
+pubdata/
+roti-resnet-transfer/
+>>>>>>> Major Refactor and Update
 hide/
 cifar10/
 # Byte-compiled / optimized / DLL files

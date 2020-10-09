@@ -1,3 +1,4 @@
+<<<<<<< 6f3823d942e484f87ee98817ef6f474e0566f50e
 tqdm
 torch>=1.3.0
 torchvision>=0.4
@@ -9,4 +10,6 @@ scikit-learn
 scikit-image
 matplotlib
 pillow
+=======
+>>>>>>> Major Refactor and Update
 
