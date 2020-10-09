@@ -17,7 +17,7 @@ import torch.nn as nn
 from sklearn import metrics
 from torch.optim.lr_scheduler import *
 from torch.optim.optimizer import Optimizer
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 from functools import partial
 import numpy as np
 import pickle
@@ -34,15 +34,15 @@ def compute_metric(ground_truth: list, prediction: list,):
 
     # compute performance metrics
     acc = metrics.accuracy_score(y_true=ground_truth, y_pred=prediction)
-    precision_by_class = metrics.precision_score(y_true=ground_truth, y_pred=prediction)
-    precision_micro = metrics.precision_score(y_true=ground_truth, y_pred=prediction, average='micro')
-    precision_macro = metrics.precision_score(y_true=ground_truth, y_pred=prediction, average='macro')
-    recall_by_class = metrics.recall_score(y_true=ground_truth, y_pred=prediction)
-    recall_micro = metrics.recall_score(y_true=ground_truth, y_pred=prediction, average='micro')
-    recall_macro = metrics.recall_score(y_true=ground_truth, y_pred=prediction, average='macro')
-    f1_by_class = metrics.f1_score(y_true=ground_truth, y_pred=prediction)
-    f1_micro = metrics.f1_score(y_true=ground_truth, y_pred=prediction, average='micro')
-    f1_macro = metrics.f1_score(y_true=ground_truth, y_pred=prediction, average='macro')
+    precision_by_class = metrics.precision_score(y_true=ground_truth, y_pred=prediction, average=None, zero_division=0)
+    precision_micro = metrics.precision_score(y_true=ground_truth, y_pred=prediction, average='micro', zero_division=0)
+    precision_macro = metrics.precision_score(y_true=ground_truth, y_pred=prediction, average='macro', zero_division=0)
+    recall_by_class = metrics.recall_score(y_true=ground_truth, y_pred=prediction, average=None, zero_division=0)
+    recall_micro = metrics.recall_score(y_true=ground_truth, y_pred=prediction, average='micro', zero_division=0)
+    recall_macro = metrics.recall_score(y_true=ground_truth, y_pred=prediction, average='macro', zero_division=0)
+    f1_by_class = metrics.f1_score(y_true=ground_truth, y_pred=prediction, average=None, zero_division=0)
+    f1_micro = metrics.f1_score(y_true=ground_truth, y_pred=prediction, average='micro', zero_division=0)
+    f1_macro = metrics.f1_score(y_true=ground_truth, y_pred=prediction, average='macro', zero_division=0)
 
     metric_dict = {'accuracy': acc,
                    'precision': {'by_class': precision_by_class, 'micro': precision_micro, 'macro': precision_macro},
@@ -57,11 +57,10 @@ class _Logger:
     Logger for collecting the loss, predictions and maintain a confusion matrix during model training/evaluation
     """
 
-    def __init__(self, n_classes: int, category_encoding: dict, criteria: str, verbose: bool):
+    def __init__(self, n_classes: int, criteria: str, verbose: bool):
         """
         Constructor
         :param n_classes: number of classes
-        :param category_encoding: category encoding, key for index value for cat name, e.g. {0: 'fish', 1: 'person'}
         :param criteria: criteria for model selection: accuracy, precision, recall and f1 score
         :param verbose: whether to print out the logging process, turn on for debugging
         """
@@ -71,10 +70,6 @@ class _Logger:
         self.criteria = criteria
         self.n_classes = n_classes
         self.verbose = verbose
-
-        # label encoding
-        self.idx2cat = category_encoding
-        self.cat2idx = {v: k for k, v in category_encoding.items()}
 
         # cache best performance
         self.best_criteria_metric = -1
@@ -104,18 +99,18 @@ class _Logger:
         self.temp_confusion_matrix = {'train': np.zeros((n_classes, n_classes)),
                                       'eval': np.zeros((n_classes, n_classes))}
 
-    def login_batch(self, phase: str, ground_truth: list, prediction: list, loss: float or None):
+    def login_batch(self, phase: str, ground_truth: list, predictions: list, loss: float or None):
         """
         Login the batch data
         :param phase: train or eval
         :param ground_truth: ground truth
-        :param prediction: predicted class
+        :param predictions: predicted class
         :param loss: batch loss
         :return: void
         """
 
         # performance metrics
-        for t, p in zip(ground_truth, prediction):
+        for t, p in zip(ground_truth, predictions):
             # update the list container
             self.temp_ground_truth[phase].append(t)
             self.temp_prediction[phase].append(p)
@@ -256,13 +251,13 @@ class _Logger:
         :return: void
         """
 
-        self.__init__(n_classes=self.n_classes, category_encoding=self.idx2cat, criteria=self.criteria, verbose=self.verbose)
+        self.__init__(n_classes=self.n_classes, criteria=self.criteria, verbose=self.verbose)
 
 
 class __BaseAgent:
 
     def __init__(self, model: nn.Module, loss_module: nn.Module or None,
-                 n_classes: int, category_encoding: dict, criteria: str, verbose: bool,
+                 n_classes: int, criteria: str, verbose: bool,
                  optimizer: partial or None, scheduler: partial or None,
                  prefix: str, checkpoint_folder: str,
                  *args):
@@ -294,7 +289,7 @@ class __BaseAgent:
         self.prefix = prefix
 
         # initialize logger
-        self.logger = _Logger(n_classes=n_classes, category_encoding=category_encoding, criteria=criteria, verbose=verbose)
+        self.logger = _Logger(n_classes=n_classes, criteria=criteria, verbose=verbose)
 
     def initialize(self, device: str, n_threads=12):
         """
@@ -384,8 +379,8 @@ class Trainer(__BaseAgent):
     """
 
     def __init__(self, model: nn.Module, loss_module: nn.Module,
-                 n_classes: int, category_encoding: dict, criteria: str,
-                 optimizer: partial, scheduler: partial or None,
+                 n_classes: int, criteria: str,
+                 optimizer: partial or torch.optim.optimizer.Optimizer, scheduler: partial or None,
                  prefix: str, checkpoint_folder: str,
                  verbose=False):
         """
@@ -393,7 +388,6 @@ class Trainer(__BaseAgent):
         :param model: model architecture
         :param loss_module: loss module
         :param n_classes: number of classes
-        :param category_encoding: category encoding, key for index value for cat name, e.g. {0: 'fish', 1: 'person'}
         :param criteria: criteria for model selection: accuracy, precision, recall and f1 score (will use micro average)
         :param optimizer: parameter optimizer. DO NOT pass the instance (i.e. DO NOT do encoder_optimizer=Adam(...)) instead, just pass the Class
         interface (i.e. encoder_optimizer=Adam) or, if need to specify the optimizer params, use partial: (e.g. encoder_optimizer=partial(Adam,
@@ -405,7 +399,7 @@ class Trainer(__BaseAgent):
         """
 
         super().__init__(model=model, loss_module=loss_module,
-                         n_classes=n_classes, category_encoding=category_encoding, criteria=criteria, verbose=verbose,
+                         n_classes=n_classes, criteria=criteria, verbose=verbose,
                          optimizer=optimizer, scheduler=scheduler,
                          prefix=prefix, checkpoint_folder=checkpoint_folder)
         self.agent = 'trainer'
@@ -468,17 +462,18 @@ class Trainer(__BaseAgent):
                     with torch.set_grad_enabled(phase == 'train'):
                         # run through model and get the output_scores
                         output_scores = self.model(X_mini_batch)
-                        prediction = output_scores.detach().argmax(-1).cpu().view(-1).tolist()
+                        predictions = output_scores.detach().argmax(-1).cpu().view(-1).tolist()
                         # TODO: refactor the loss_module forward pass
                         loss = self.loss_module(X=output_scores, Y=Y_mini_batch)
 
                         # batch logging - ground truth, prediction, batch loss
-                        self.logger.login_batch(phase=phase, ground_truth=ground_truth, prediction=prediction,
+                        self.logger.login_batch(phase=phase, ground_truth=ground_truth, predictions=predictions,
                                                 loss=loss.detach().cpu().tolist())
 
                         # backward + optimize only if in training phase
                         if phase == 'train':
                             loss.backward()
+                            self.optimizer.step()
 
                 # ITERATION END - login the compute the performance metrics
                 epoch_loss, acc, selected_metric, find_better_model = self.logger.login_iteration(phase=phase, criteria=self.criteria, epoch=epoch)
@@ -555,21 +550,20 @@ class Evaluator(__BaseAgent):
     """
 
     def __init__(self, model: nn.Module,
-                 n_classes: int, category_encoding: dict, criteria: str,
+                 n_classes: int, criteria: str,
                  prefix: str, checkpoint_folder: str,
                  verbose=False):
         """
         Constructor
         :param model: model architecture
         :param n_classes: number of classes
-        :param category_encoding: category encoding, key for index value for cat name, e.g. {0: 'fish', 1: 'person'}
         :param criteria: criteria for model selection: accuracy, precision, recall and f1 score (will use micro average)
         :param prefix: checkpoint naming prefix
         :param checkpoint_folder: checkpoint directory
         :param verbose: whether to print out additional message for debugging
         """
         super().__init__(model=model, loss_module=None,
-                         n_classes=n_classes, category_encoding=category_encoding, criteria=criteria, verbose=verbose,
+                         n_classes=n_classes, criteria=criteria, verbose=verbose,
                          optimizer=None, scheduler=None,
                          prefix=prefix, checkpoint_folder=checkpoint_folder)
         self.agent = 'evaluator'
@@ -604,7 +598,7 @@ class Evaluator(__BaseAgent):
             prediction = output_scores.detach().argmax(-1).cpu().view(-1).tolist()
 
             # batch logging - ground truth, prediction, batch loss
-            self.logger.login_batch(phase='eval', ground_truth=ground_truth, prediction=prediction,
+            self.logger.login_batch(phase='eval', ground_truth=ground_truth, predictions=prediction,
                                     loss=None)
 
         # ITERATION END - login the compute the performance metrics

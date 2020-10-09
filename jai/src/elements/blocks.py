@@ -113,7 +113,7 @@ class ResidualBlock(nn.Module):
         super().__init__()
 
         # layer name
-        self.names = ['res-layer{}'.format(i+1) for i in range(num_units)]
+        self.names = ['res_layer{}'.format(i+1) for i in range(num_units)]
 
         # build the block
         n_features = feature_expand_ratio * num_in_channels
@@ -126,6 +126,8 @@ class ResidualBlock(nn.Module):
                 # No change on num. of feature maps or space
                 res_layer = _ResidualUnit(num_in_channels=n_features, init_conv_stride=1,
                                           feature_expand_ratio=1, ksize=ksize, num_layers=num_layer_per_unit)
+
+            # pytorch overwrote the __setattr__ method
             self.__setattr__(name=name, value=res_layer)
 
     def forward(self, x: Tensor):
@@ -136,7 +138,7 @@ class ResidualBlock(nn.Module):
         """
 
         for name in self.names:
-            x = self.__getattribute__(name).forward(x)
+            x = self._modules[name].forward(x)
 
         return x
 
@@ -194,9 +196,9 @@ class _ResidualUnit(nn.Module):
         identity = x
         # go through conv-relu-bn units
         for layer_name in self.names:
-            x = self.__getattribute__(name=layer_name).forward(x)
+            x = self._modules[layer_name].forward(x)
         # shortcut connection
-        x = self.__getattribute__('shortcut').forward(x, identity)
+        x = self._modules['shortcut'].forward(x, identity)
 
         return x
 
@@ -282,7 +284,7 @@ class DenseBlock(nn.Module):
         # iteration, at each step, concat the current features as the input and collect new feature into the list
         for name in self.names:
             concat_features = torch.cat(features, dim=1)
-            new_features = self.__getattribute__(name=name).forward(concat_features)
+            new_features = self._modules[name].forward(concat_features)
             features.append(new_features)
 
         # return concat features

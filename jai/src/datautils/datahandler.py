@@ -93,7 +93,11 @@ class DataPackerAbstract:
             if self.annotations is not None and data_id not in self.annotations:
                 raise Exception('Data id={} from data src can not be found in annotation.'.format(data_id))
 
-        return {'mode': self.mode, 'data': self.data_src, 'labels': self.labels, 'annotations': self.annotations}
+        output = {'mode': self.mode, 'data': self.data_src, 'labels': self.labels}
+        if self.annotations is not None:
+            output['annotations'] = self.annotations
+
+        return output
 
     def split(self, *args):
         """
@@ -199,7 +203,7 @@ class ImgDataset(Dataset):
         # get the labels
         label = self.packed_data['labels'][data_id]
 
-        output = {'img': img, 'label': label}
+        output = {'x': img, 'y': label}
 
         # get the additional annotations, if any
         if 'annotations' in self.packed_data:
