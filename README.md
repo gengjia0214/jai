@@ -1,4 +1,4 @@
-# jai - Just Assemble It!
+# JAI - Just Assemble It!
 
 Author: Jia Geng
 
