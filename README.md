@@ -1,5 +1,8 @@
 # JAI - Just Assemble It!
 
+[![Version](https://badge.fury.io/gh/tterb%2FHyde.svg)](https://badge.fury.io/gh/tterb%2FHyde)
+[![GitHub Release](https://img.shields.io/github/release/tterb/PlayMusic.svg?style=flat)]()  
+
 Author: Jia Geng
 
 Email: jxg570@miami.edu | gjia0214@hotmail.com
