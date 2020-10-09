@@ -20,9 +20,7 @@ Implement anything popped up in my head when I got time and coffee...
 
 ## Installation
 
-`pip install jai` 
-
-The library is still in early stage. A lot more of functions and tools will be implemented and tested soon and in the future.
+`pip install jai` (jai on PyPI is currently on a depreciated version)
 
 ## Library Walk Through 
 
