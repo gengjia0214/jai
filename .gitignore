@@ -1,6 +1,8 @@
 # temp
 <<<<<<< 6f3823d942e484f87ee98817ef6f474e0566f50e
 =======
+pretrained/
+exp/
 setup.py
 res/
 data/
