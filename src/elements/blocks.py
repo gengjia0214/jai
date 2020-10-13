@@ -100,13 +100,13 @@ class ResidualBlock(nn.Module):
     Output: (H // init_conv_stride, W // init_conv_stride, C_in * feature_expand_ratio )
     """
 
-    def __init__(self, num_units: int, num_in_channels: int, ksize, init_conv_stride=2, feature_expand_ratio=2, num_layer_per_unit=2):
+    def __init__(self, num_units: int, num_in_channels: int, ksize, space_reduction_ratio=2, feature_expand_ratio=2, num_layer_per_unit=2):
         """
         Constructor
         :param num_units: number of residual units, each residual unit contains two (or more) conv-relu-bn layers and a shortcut connection
         :param num_in_channels: number of input feature maps
         :param ksize: kernel size
-        :param init_conv_stride: stride for the first conv-relu-bn unit in the first res layer, default is 2
+        :param space_reduction_ratio: stride for the first conv-relu-bn unit in the first res layer, default is 2
         :param feature_expand_ratio: feature expand ratio for the first conv-relu-bn unit in the first res layer, default is 2
         :param num_layer_per_unit: number of conv-relu-bn layer in each res unit, default is 2
         """
@@ -120,7 +120,7 @@ class ResidualBlock(nn.Module):
         for i, name in enumerate(self.names):
             if i == 0:
                 # For the first conv-relu-bn unit in the first res layer, downsample the space and increase the feature map
-                res_layer = _ResidualUnit(num_in_channels=num_in_channels, init_conv_stride=init_conv_stride,
+                res_layer = _ResidualUnit(num_in_channels=num_in_channels, init_conv_stride=space_reduction_ratio,
                                           feature_expand_ratio=feature_expand_ratio, ksize=ksize, num_layers=num_layer_per_unit)
             else:
                 # No change on num. of feature maps or space
@@ -214,15 +214,16 @@ class _ShortcutConnection(nn.Module):
         Constructor
         :param num_in_channel: number of input channels
         :param num_out_channel: number of output channels
-        :param stride: stride for matching the H, W
+        :param stride: stride for matching the feature map size (H, W) before and after
         """
 
         super().__init__()
-        self.mapping = None
+        self.bottleneck = None
 
         # if channel does not match or space does not match, add a bottle neck
         if num_in_channel != num_out_channel or stride != 1:
-            self.mapping = conv2d(num_in_channel, num_out_channel, ksize=1, stride=stride, bias=False)
+            self.bottleneck = nn.Sequential(conv2d(num_in_channel, num_out_channel, ksize=1, stride=stride, bias=False),
+                                            nn.BatchNorm2d(num_out_channel))
 
     def forward(self, x: Tensor, identity: Tensor):
         """
@@ -232,10 +233,10 @@ class _ShortcutConnection(nn.Module):
         :return:
         """
 
-        if self.mapping is None:
+        if self.bottleneck is None:
             return x + identity
         else:
-            return x + self.mapping(identity)
+            return x + self.bottleneck(identity)
 
 
 class DenseBlock(nn.Module):

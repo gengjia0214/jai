@@ -147,7 +147,7 @@ class _Logger:
         find_better_model = False
 
         # update the epoch log
-        epoch_loss = np.mean(self.temp_batch_loss['train'])
+        epoch_loss = np.mean(self.temp_batch_loss[phase])
         self.epoch_loss[phase].append(epoch_loss)
 
         # compute the performance metrics
@@ -449,10 +449,10 @@ class Trainer(__BaseAgent):
                     self.optimizer.zero_grad()
 
                     # grab X, Y
-                    X_mini_batch, Y_mini_batch = mini_batch['x'], mini_batch['y']
-
-                    # ground truth
-                    ground_truth = Y_mini_batch.cpu().view(-1).tolist()
+                    if isinstance(mini_batch, dict):
+                        X_mini_batch, Y_mini_batch = mini_batch['x'], mini_batch['y']
+                    else:
+                        X_mini_batch, Y_mini_batch = mini_batch
 
                     # move to computing device
                     X_mini_batch = X_mini_batch.to(self.device)
@@ -462,18 +462,19 @@ class Trainer(__BaseAgent):
                     with torch.set_grad_enabled(phase == 'train'):
                         # run through model and get the output_scores
                         output_scores = self.model(X_mini_batch)
-                        predictions = output_scores.detach().argmax(-1).cpu().view(-1).tolist()
                         # TODO: refactor the loss_module forward pass
                         loss = self.loss_module(X=output_scores, Y=Y_mini_batch)
-
-                        # batch logging - ground truth, prediction, batch loss
-                        self.logger.login_batch(phase=phase, ground_truth=ground_truth, predictions=predictions,
-                                                loss=loss.detach().cpu().tolist())
 
                         # backward + optimize only if in training phase
                         if phase == 'train':
                             loss.backward()
                             self.optimizer.step()
+
+                    # batch logging - ground truth, prediction, batch loss
+                    ground_truth = Y_mini_batch.cpu().view(-1).tolist()
+                    predictions = output_scores.detach().argmax(-1).cpu().view(-1).tolist()
+                    self.logger.login_batch(phase=phase, ground_truth=ground_truth, predictions=predictions,
+                                            loss=loss.detach().cpu().tolist())
 
                 # ITERATION END - login the compute the performance metrics
                 epoch_loss, acc, selected_metric, find_better_model = self.logger.login_iteration(phase=phase, criteria=self.criteria, epoch=epoch)
@@ -488,6 +489,14 @@ class Trainer(__BaseAgent):
                                                                           self.criteria, epoch_recorder['train']['perf']))
             print("Eval Loss: {} Eval Accuracy: {} Eval {}: {}".format(epoch_recorder['eval']['loss'], epoch_recorder['eval']['acc'],
                                                                        self.criteria, epoch_recorder['eval']['perf']))
+
+            # scheduler step
+            if self.scheduler is not None:
+                if isinstance(self.scheduler, ReduceLROnPlateau):
+                    self.scheduler.step(loss)
+                else:
+                    self.scheduler.step()
+
             # checkpoint
             if find_better_model:
                 print('+++')
@@ -497,15 +506,7 @@ class Trainer(__BaseAgent):
                 print('+++')
             print("\n======End Epoch {}=======\n".format(epoch))
 
-            # scheduler step
-            if self.scheduler is not None:
-                if isinstance(self.scheduler, ReduceLROnPlateau):
-                    self.scheduler.step(loss)
-                else:
-                    self.scheduler.step()
-
             # for last epoch
-            # make checkpoint and compute the feature rank using best epoch ranking stats
             if epoch == epochs - 1:
                 self.save_checkpoint(epoch, last_epoch=True)
 

@@ -10,27 +10,13 @@ import torch.nn as nn
 import torch
 
 
-class Flatten(nn.Module):
-    """
-    Dummy flatten operation
-    """
-
-    def __init__(self, axis):
-        super().__init__()
-        self.axis = axis
-
-    def forward(self, x: torch.Tensor):
-        x = torch.flatten(x, self.axis)
-        return x
-
-
 class AvgPoolFCHead(nn.Module):
     """
     Average Pooling + Dense Layers
     avgpool - fc1 - relu - fc2 - scores
     """
 
-    def __init__(self, n_classes: int, in_channels: int, buffer_reduction: int or None, avgpool_target_shape=(1, 1)):
+    def __init__(self, n_classes: int, in_channels: int, buffer_reduction: int or None, avgpool_target_shape: tuple):
         """
         Constructor
         :param n_classes: number of classes
@@ -46,9 +32,6 @@ class AvgPoolFCHead(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool2d(avgpool_target_shape)
         n_flatten_features = in_channels * avgpool_target_shape[0] * avgpool_target_shape[1]
 
-        # flatten
-        self.flatten = Flatten(axis=1)
-
         # FCs
         if buffer_reduction is not None:
             buffer_size = n_flatten_features // buffer_reduction
@@ -63,6 +46,6 @@ class AvgPoolFCHead(nn.Module):
         self.fcs = nn.Sequential(*fcs)
 
     def forward(self, x):
-        x = self.fcs(self.flatten(self.avgpool(x)))
+        x = self.fcs(self.avgpool(x).view(x.shape[0], -1))
         return x
 

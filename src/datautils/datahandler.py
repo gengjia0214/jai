@@ -19,7 +19,7 @@ def default_preprocessing(mean, std, size: tuple):
     :return: list of processing module
     """
 
-    return [ToPILImage(), Resize(size=size), ToTensor(), Normalize(mean=mean, std=std)]
+    return [Resize(size=size), ToTensor(), Normalize(mean=mean, std=std)]
 
 
 def default_augmentation(p):
@@ -37,7 +37,7 @@ def default_augmentation(p):
     # 0.25 chance of get color jittered (disable the jitter on hue as it would require PIL input)
     jitter = RandomApply([ColorJitter(brightness=0.25, contrast=0.25, saturation=0.25, hue=0)], p=0.25)
 
-    return [flip, jitter]
+    return [ToPILImage(), flip, jitter]
 
 
 class DataPackerAbstract:
@@ -130,7 +130,7 @@ class ImgDataset(Dataset):
     Use .train() or .eval() to turn on or off the augmentation
     """
 
-    def __init__(self, data_packer: DataPackerAbstract, pre_pipeline: list or None, augmentations: list or None, device='cpu', data_src_dir=None):
+    def __init__(self, data_packer: DataPackerAbstract, pre_pipeline: list or None, augmentations: list or None, data_src_dir=None):
         """
         Constructor
         :param data_packer: A packed data object. The object class should inherit the PackedDataAbstract
@@ -138,17 +138,12 @@ class ImgDataset(Dataset):
         no need to pass it again.
         :param augmentations: Data augmentations. If not None, pass a list of augmentation module. At training time, each image will be
         augmented by the provided augmentation technique.
-        :param device: device for computation (preprocessing & augmentation)
         :param data_src_dir: the directory for the data, useful when mode is disk, if None, treat the path provided as full path
         """
-
-        # phase
-        self.training = False
 
         # data
         self.packed_data = data_packer.get_packed_data()
         self.parent_dir = data_src_dir
-        self.device = device
 
         # idx to img_id to make get_item work
         self.idx2id = {i: img_id for i, img_id in enumerate(self.packed_data['data'])}
@@ -189,16 +184,17 @@ class ImgDataset(Dataset):
         else:
             raise Exception('Mode must be either disk or memory but was {}'.format(mode))
 
-        # convert the image to tensor
-        img = ToTensor()(img).to(self.device)
+        # apply augmentations
+        if self.augmentations is not None:
+            img = self.augmentations(img)
+
+        # check type
+        if not isinstance(img, Image.Image):
+            img = ToPILImage()(img)
 
         # apply preprocessing pipeline
         if self.pre_processing is not None:
             img = self.pre_processing(img)
-
-        # apply augmentations
-        if self.training and self.augmentations is not None:
-            img = self.augmentations(img)
 
         # get the labels
         label = self.packed_data['labels'][data_id]
@@ -220,22 +216,6 @@ class ImgDataset(Dataset):
         """
 
         return len(self.idx2id)
-
-    def train(self):
-        """
-        Switch to train phase
-        :return: void
-        """
-
-        self.training = True
-
-    def eval(self):
-        """
-        Switch to eval phase
-        :return: void
-        """
-
-        self.training = False
 
     @staticmethod
     def __sanity_check(funcs: list):
@@ -271,10 +251,8 @@ class DataHandler:
 
         self.dataloaders = {'train': None, 'eval': None}
         if train_dataset is not None:
-            train_dataset.train()
             self.dataloaders['train'] = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
         if eval_dataset is not None:
-            eval_dataset.eval()
             self.dataloaders['eval'] = DataLoader(dataset=eval_dataset, batch_size=batch_size, shuffle=False)
 
     def __getitem__(self, phase: str):
