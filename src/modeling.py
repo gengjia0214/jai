@@ -197,7 +197,7 @@ class _Logger:
             raise Exception('src need to be either the logger state dict or a path to the pickle file')
 
         for attr, val in state_dict.items():
-            self.__setattr__(name=attr, value=val)
+            self.__setattr__(attr, val)
 
     def save(self, dst_pth: str,):
         """
