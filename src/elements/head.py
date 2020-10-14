@@ -30,7 +30,7 @@ class AvgPoolFCHead(nn.Module):
 
         # average pool
         self.avgpool = nn.AdaptiveAvgPool2d(avgpool_target_shape)
-        ratio = avgpool_target_shape[0] * avgpool_target_shape[1] if isinstance(avgpool_target_shape, tuple) else avgpool_target_shape
+        ratio = avgpool_target_shape[0] * avgpool_target_shape[1] if isinstance(avgpool_target_shape, tuple) else avgpool_target_shape ** 2
         n_flatten_features = in_channels * ratio
 
         # FCs

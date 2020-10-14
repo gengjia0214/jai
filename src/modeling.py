@@ -424,6 +424,9 @@ class Trainer(__BaseAgent):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
+        # memory monitoring
+        memory_usage = {'train': -1, 'eval': -1}
+
         # placeholder
         epoch_recorder = {'train': {},
                           'eval': {}}
@@ -446,7 +449,8 @@ class Trainer(__BaseAgent):
                 for i, mini_batch in tqdm(enumerate(datahandler[phase]), total=len(datahandler[phase]), desc=pbar_msg):
 
                     # zero the gradient
-                    self.optimizer.zero_grad()
+                    if phase == 'train':
+                        self.optimizer.zero_grad()
 
                     # grab X, Y
                     if isinstance(mini_batch, dict):
@@ -471,10 +475,19 @@ class Trainer(__BaseAgent):
                             self.optimizer.step()
 
                     # batch logging - ground truth, prediction, batch loss
-                    ground_truth = Y_mini_batch.cpu().view(-1).tolist()
-                    predictions = output_scores.detach().argmax(-1).cpu().view(-1).tolist()
+                    ground_truth = Y_mini_batch.cpu().detach().view(-1).tolist()
+                    predictions = output_scores.cpu().detach().argmax(-1).view(-1).tolist()
                     self.logger.login_batch(phase=phase, ground_truth=ground_truth, predictions=predictions,
-                                            loss=loss.detach().cpu().tolist())
+                                            loss=loss.cpu().detach().tolist())
+
+                if self.device != 'cpu':
+                    memory_usage[phase] = torch.cuda.memory_allocated(device=self.device)
+
+                # clear the memory
+                del loss
+                del output_scores
+                del X_mini_batch
+                del Y_mini_batch
 
                 # ITERATION END - login the compute the performance metrics
                 epoch_loss, acc, selected_metric, find_better_model = self.logger.login_iteration(phase=phase, criteria=self.criteria, epoch=epoch)
@@ -489,6 +502,8 @@ class Trainer(__BaseAgent):
                                                                           self.criteria, epoch_recorder['train']['perf']))
             print("Eval Loss: {} Eval Accuracy: {} Eval {}: {}".format(epoch_recorder['eval']['loss'], epoch_recorder['eval']['acc'],
                                                                        self.criteria, epoch_recorder['eval']['perf']))
+            if self.device != 'cpu':
+                print("Memory usage during train: {} | Memory usage during eval: {}".format(memory_usage['train'], memory_usage['eval']))
 
             # scheduler step
             if self.scheduler is not None:

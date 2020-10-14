@@ -241,9 +241,10 @@ class _ShortcutConnection(nn.Module):
 
 class DenseBlock(nn.Module):
     """
-    DenseNet basic block, consist of a stack of dense layers
+    DenseNet basic block, consist of a stack of dense unit
+    Each dense unit is a stack of bottelneck + convrelubn layer with dense forward pass
     Input (H, W, C_in)
-    Output (H, W, C_in + growth_rate * num_layers)
+    Output (H, W, C_in + growth_rate * num_units)
     Each dense layer:
     - consist of a bottleneck layer and a conv layer
         - bottleneck layer will reduce the num. of feature maps to base size * growth rate

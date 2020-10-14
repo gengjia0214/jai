@@ -171,8 +171,9 @@ class ConfigDenseNet(_BaseConfig):
 
     def __init__(self, n_classes: int,
                  init_num_feature_maps: int, init_conv_stride: int, init_kernel_size: int, init_maxpool_stride: int, init_maxpool_size: int,
-                 num_dense_blocks: int, num_dense_unit_per_block: int or list, growth_rates: int or list, base_bottleneck_sizes: int or list,
-                 dropout_rate: float, avgpool_target_size: int, num_in_channels=3, kernel_sizes=3):
+                 num_blocks: int, num_dense_unit_per_block: int or list, growth_rates: int or list, base_bottleneck_sizes: int or list,
+                 transition_space_reductions: int or list, transition_feature_reductions: int or list,
+                 dropout_rate: float, avgpool_target_size: int or tuple, num_in_channels=3, kernel_sizes=3):
         """
         Constructor
         :param n_classes: Number of classes
@@ -181,14 +182,18 @@ class ConfigDenseNet(_BaseConfig):
         :param init_maxpool_stride: Initial block maxpool stride
         :param init_kernel_size: Kernel size for the initial block conv layer (usually 3x3, 5x5, 7x7 depends on the input size)
         :param init_maxpool_size: Kernel size for the initial block maxpool layer (2x2, 3x3, 4x4, 5x5)
-        :param num_dense_blocks: Number of dense block, usually is set to 4. After i-th block, num_features = init_num_feature_maps + growth_rate * i
+        :param num_blocks: Number of dense block, usually is set to 4. After i-th block, num_features = init_num_feature_maps + growth_rate * i
         :param num_dense_unit_per_block: Number of dense unit per block. Pass int for fixed arg, pass list for per block configuration.
         :param growth_rates: Growth rate for each block. Growth rate decide the increase of feature maps. Common choice are (16, 32, 48)Pass int for
         fixed arg, pass list for per block configuration.
         :param base_bottleneck_sizes: Multiplicative factor for number of bottle neck layers (i.e. base_bottleneck_size * k features in the bottleneck
-        layer). Common choice is 4.
+        layer). Common choice is 2 or 4. Pass int for fixed arg, pass list for per block configuration.
+        :param transition_feature_reductions: Feature map reduction ratio for the transition block, usually 2. Pass int for fixed arg,
+        pass list for per block configuration.(apply to the bottleneck layer in the transition block)
+        :param transition_space_reductions: Space reduction ratio for the transition block, usually 2. Pass int for fixed arg, pass list for per
+        block configuration. (apply to the average pooling layer in the transition block)
         :param dropout_rate: Dropout rate, dropout layer is at the end of each dense block
-        :param avgpool_target_size: Average pooling layer output size.
+        :param avgpool_target_size: Average pooling layer target size. Common value is 1, 2, 4
         :param num_in_channels: Number of input channels, default is 3 for RGB, for gray-scale need to set to 1
         :param kernel_sizes: kernel size, default is 3
         """
@@ -196,10 +201,12 @@ class ConfigDenseNet(_BaseConfig):
         super().__init__()
 
         # sanity check
-        sanity_check(num_blocks=num_dense_blocks, arg=num_dense_unit_per_block, var_name='num_dense_unit_per_block')
-        sanity_check(num_blocks=num_dense_blocks, arg=growth_rates, var_name='growth_rates')
-        sanity_check(num_blocks=num_dense_blocks, arg=base_bottleneck_sizes, var_name='base_bottleneck_sizes')
-        sanity_check(num_blocks=num_dense_blocks, arg=kernel_sizes, var_name='kernel_sizes')
+        sanity_check(num_blocks=num_blocks, arg=num_dense_unit_per_block, var_name='num_dense_unit_per_block')
+        sanity_check(num_blocks=num_blocks, arg=growth_rates, var_name='growth_rates')
+        sanity_check(num_blocks=num_blocks, arg=base_bottleneck_sizes, var_name='base_bottleneck_sizes')
+        sanity_check(num_blocks=num_blocks, arg=kernel_sizes, var_name='kernel_sizes')
+        sanity_check(num_blocks=num_blocks - 1, arg=transition_feature_reductions, var_name='transition_feature_reductions')
+        sanity_check(num_blocks=num_blocks - 1, arg=transition_space_reductions, var_name='transition_space_reductions')
 
         # prepare the args for the initial block
         init_block = get_init_block_arg_dict(init_num_feature_maps=init_num_feature_maps, init_conv_stride=init_conv_stride,
@@ -211,28 +218,35 @@ class ConfigDenseNet(_BaseConfig):
         num_feature_maps = init_num_feature_maps
 
         # residual block
-        for i in range(num_dense_blocks):
+        for i in range(num_blocks):
             # check the input type
             growth_rate = growth_rates[i] if isinstance(growth_rates, list) else growth_rates
             base_bottleneck_size = base_bottleneck_sizes[i] if isinstance(base_bottleneck_sizes, list) else base_bottleneck_sizes
             num_unit = num_dense_unit_per_block[i] if isinstance(num_dense_unit_per_block, list) else num_dense_unit_per_block
             kernel_size = kernel_sizes[i] if isinstance(kernel_sizes, list) else kernel_sizes
-
-            # num_layers: int, num_in_channels: int, growth_rate: int,
-            # base_bottleneck_size: int, ksize: int, drop_rate: float
+            num_dense_unit = num_dense_unit_per_block[i] if isinstance(num_dense_unit_per_block, list) else num_dense_unit_per_block
 
             # prepare the residual block params
             dense_block_args = {'num_units': num_unit, 'num_in_channels': num_feature_maps,
                                 'base_bottleneck_size': base_bottleneck_size, 'growth_rate': growth_rate,
                                 'ksize': kernel_size, 'dropout_rate': dropout_rate}
 
-            # collect the args
+            # collect the args for dense block
             self.model_config.append(('dense_block_{}'.format(i + 1), dense_block_args))
-
             # update feature map count
-            num_feature_maps += growth_rate
+            num_feature_maps += growth_rate * num_dense_unit
+
+            # collect the args for transition block
+            if i != num_blocks - 1:
+                fe_reduction = transition_feature_reductions[i] if isinstance(transition_feature_reductions, list) else transition_feature_reductions
+                space_reduction = transition_space_reductions[i] if isinstance(transition_space_reductions, list) else transition_space_reductions
+                transition_block_args = {'num_in_channels': num_feature_maps, 'feature_reduction_ratio': fe_reduction,
+                                         'space_reduction_ratio': space_reduction, 'avgpool_ksize': 2}
+                self.model_config.append(('transition_block_{}'.format(i+1), transition_block_args))
+                num_feature_maps = num_feature_maps // fe_reduction
 
         # head module
+        print(num_feature_maps, 'fc')
         head_block_args = get_head_block_arg_dict(n_classes=n_classes, num_feature_maps=num_feature_maps,
                                                   buffer_reduction=None, avgpool_target_size=avgpool_target_size)
         self.model_config.append(('avgfc_head_block', head_block_args))
@@ -259,6 +273,7 @@ class Builder:
         self.memo = {'init_block': InitConvBlock,
                      'residual_block': ResidualBlock,
                      'dense_block': DenseBlock,
+                     'transition_block': TransitionBlock,
                      'avgfc_head_block': AvgPoolFCHead}
 
     def assemble(self, config: _BaseConfig):
