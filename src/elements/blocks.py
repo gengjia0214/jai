@@ -128,7 +128,7 @@ class ResidualBlock(nn.Module):
                                           feature_expand_ratio=1, ksize=ksize, num_layers=num_layer_per_unit)
 
             # pytorch overwrote the __setattr__ method
-            self.__setattr__(name=name, value=res_layer)
+            self.add_module(name=name, module=res_layer)
 
     def forward(self, x: Tensor):
         """
@@ -179,11 +179,11 @@ class _ResidualUnit(nn.Module):
             else:
                 layer = conv_relu_bn(num_in_channels=n_features, num_out_channels=n_features,
                                      stride=1, ksize=ksize, bias=False)
-            self.__setattr__(name=self.names[i], value=layer)
+            self.add_module(name=self.names[i], module=layer)
 
         # add shortcut connection
-        self.__setattr__(name='shortcut',
-                         value=_ShortcutConnection(num_in_channel=num_in_channels, num_out_channel=n_features, stride=init_conv_stride))
+        self.add_module(name='shortcut',
+                        module=_ShortcutConnection(num_in_channel=num_in_channels, num_out_channel=n_features, stride=init_conv_stride))
 
     def forward(self, x: Tensor):
         """
@@ -245,32 +245,37 @@ class DenseBlock(nn.Module):
     Input (H, W, C_in)
     Output (H, W, C_in + growth_rate * num_layers)
     Each dense layer:
-    - consist of a bottle neck layer and a conv layer
+    - consist of a bottleneck layer and a conv layer
+        - bottleneck layer will reduce the num. of feature maps to base size * growth rate
+        - conv layer will reduce the space size, it will also reduce the feature maps to growth rate
     - take in concat of all previous learned feature maps and return k (growth rate) feature maps
     """
 
-    def __init__(self, num_layers: int, num_in_channels: int, growth_rate: int, bn_size: int, ksize: int, drop_rate: float):
+    def __init__(self, num_units: int, num_in_channels: int, growth_rate: int,
+                 base_bottleneck_size: int, ksize: int, dropout_rate: float):
         """
-        :param num_layers: number of dense layers
+        :param num_units: number of dense layers
         :param num_in_channels: number of input channel
-        :param growth_rate: how many filters to add each layer (`k` in paper)
-        :param bn_size: multiplicative factor for number of bottle neck layers (i.e. bn_size * k features in the bottleneck layer)
+        :param growth_rate: how many filters to be added after each layer (`k` in paper)
+        :param base_bottleneck_size: multiplicative factor for number of bottle neck layers (i.e. bn_size * k features in the bottleneck layer)
         :param ksize: kernel size
-        :param drop_rate: dropout rate after each dense layer
+        :param dropout_rate: dropout rate after each dense layer
         """
         super().__init__()
 
         # layer names
-        self.names = ['dense-layer{}'.format(i+1) for i in range(num_layers)]
+        self.names = ['dense_layer{}'.format(i+1) for i in range(num_units)]
 
         # build the block
         for i, name in enumerate(self.names):
             # num_in_channel is the concatenate of all previous layers' output & original input
             # each layer's output channel = growth_rate, hence, for i-th layer
             # num_in_channels + i * growth_rate
-            layer = self.dense_layer(num_in_channels=num_in_channels + i * growth_rate,
-                                     growth_rate=growth_rate, bn_size=bn_size, ksize=ksize, drop_rate=drop_rate)
-            self.__setattr__(name=name, value=layer)
+            layer = _DenseUnit(num_in_channels=num_in_channels + i * growth_rate,
+                               growth_rate=growth_rate, base_bottleneck_size=base_bottleneck_size,
+                               ksize=ksize, drop_rate=dropout_rate)
+
+            self.add_module(name=name, module=layer)
 
     def forward(self, x: Tensor):
         """
@@ -291,26 +296,33 @@ class DenseBlock(nn.Module):
         # return concat features
         return torch.cat(features, dim=1)
 
-    @staticmethod
-    def dense_layer(num_in_channels: int, growth_rate: int, bn_size: int, ksize: int, drop_rate: float):
+
+class _DenseUnit(nn.Module):
+    """
+    Dense layer consists of:
+    - At bottleneck, the channels will be mapped to bn_size * growth rate
+    - At the conv-relu-bn unit, the channels will be reduced to growth rate
+    - Name growth rate because each layer's output will be concat to the input of following layers.
+    """
+
+    def __init__(self, num_in_channels: int, growth_rate: int, base_bottleneck_size: int, ksize: int, drop_rate: float):
         """
-        Get a dense unit: bottelneck -> conv-relu-bn
-        - At bottleneck, the channels will be mapped to bn_size * growth rate
-        - At the conv-relu-bn unit, the channels will be reduced to growth rate
-        - Name growth rate because each layer's output will be concat to the input of following layers.
         :param num_in_channels: number of input channel
         :param growth_rate: how many filters to add each layer (`k` in paper)
-        :param bn_size: multiplicative factor for number of bottle neck layers (i.e. bn_size * k features in the bottleneck layer)
+        :param base_bottleneck_size: multiplicative factor that decides the intermediate num. of feature maps (= base_bottleneck_size * k)
         :param ksize: kernel size
         :param drop_rate: dropout rate after each dense layer
         """
 
-        # dense unit start with a bottle neck layer to limit the growth of the
-        bottleneck = conv_relu_bn(num_in_channels=num_in_channels, num_out_channels=bn_size*growth_rate, ksize=1, stride=1, bias=False)
-        convrelubn = conv_relu_bn(num_in_channels=bn_size*growth_rate, num_out_channels=growth_rate, ksize=ksize, stride=1, bias=False)
-        dropout = nn.Dropout(p=drop_rate)
+        super().__init__()
 
-        return nn.Sequential(bottleneck, convrelubn, dropout)
+        # dense unit start with a bottle neck layer to limit the over growth of the feature map
+        self.bottleneck = conv_relu_bn(num_in_channels=num_in_channels, num_out_channels=base_bottleneck_size * growth_rate, ksize=1, stride=1, bias=False)
+        self.convrelubn = conv_relu_bn(num_in_channels=base_bottleneck_size * growth_rate, num_out_channels=growth_rate, ksize=ksize, stride=1, bias=False)
+        self.dropout = nn.Dropout(p=drop_rate)
+
+    def forward(self, x: Tensor):
+        return self.dropout(self.convrelubn(self.bottleneck(x)))
 
 
 class TransitionBlock(nn.Module):
@@ -320,19 +332,23 @@ class TransitionBlock(nn.Module):
     Use between DenseBlocks to reduce the number of feature maps and the space size.
     """
 
-    def __init__(self, num_in_channels, num_out_channels):
+    def __init__(self, num_in_channels, feature_reduction_ratio=2, space_reduction_ratio=2, avgpool_ksize=2):
         """
         Constructor
         :param num_in_channels: num. of input channels
-        :param num_out_channels: num. of output channels
+        :param feature_reduction_ratio: reduction ratio for feature maps, num. of output feature maps = num_in_channels // reduction ratio
+        :param space_reduction_ratio: reduction ratio for space, H_out, W_out = H_in // ratio, W_in // ratio
         """
+
         super().__init__()
 
         # bottleneck unit to reduce the number
+        num_out_channels = num_in_channels // feature_reduction_ratio
         self.bottleneck = conv_relu_bn(num_in_channels=num_in_channels, num_out_channels=num_out_channels, ksize=1, stride=1, bias=False)
-        # avg pooling to reduce the space (H-1//2, W-1//2)
+
         # TODO: whether padding is needed here
-        self.avgpool = nn.AvgPool2d(kernel_size=2, stride=2)
+        # avg pooling to reduce the space (H-1//2, W-1//2)
+        self.avgpool = nn.AvgPool2d(kernel_size=avgpool_ksize, stride=space_reduction_ratio)
 
     def forward(self, x: Tensor):
         """

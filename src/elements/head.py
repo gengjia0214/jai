@@ -16,7 +16,7 @@ class AvgPoolFCHead(nn.Module):
     avgpool - fc1 - relu - fc2 - scores
     """
 
-    def __init__(self, n_classes: int, in_channels: int, buffer_reduction: int or None, avgpool_target_shape: tuple):
+    def __init__(self, n_classes: int, in_channels: int, buffer_reduction: int or None, avgpool_target_shape: tuple or int):
         """
         Constructor
         :param n_classes: number of classes
@@ -30,7 +30,8 @@ class AvgPoolFCHead(nn.Module):
 
         # average pool
         self.avgpool = nn.AdaptiveAvgPool2d(avgpool_target_shape)
-        n_flatten_features = in_channels * avgpool_target_shape[0] * avgpool_target_shape[1]
+        ratio = avgpool_target_shape[0] * avgpool_target_shape[1] if isinstance(avgpool_target_shape, tuple) else avgpool_target_shape
+        n_flatten_features = in_channels * ratio
 
         # FCs
         if buffer_reduction is not None:
