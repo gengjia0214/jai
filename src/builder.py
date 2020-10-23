@@ -12,7 +12,7 @@ from elements.blocks import *
 from elements.head import *
 
 
-def get_init_block_arg_dict(init_num_feature_maps, init_conv_stride, init_kernel_size, init_maxpool_stride, init_maxpool_size, num_in_channels):
+def get_init_block_args(init_num_feature_maps, init_conv_stride, init_kernel_size, init_maxpool_stride, init_maxpool_size, num_in_channels):
     """
     Wrap the args for init block into a dict.
     Check Config classes for arg doc string
@@ -26,7 +26,7 @@ def get_init_block_arg_dict(init_num_feature_maps, init_conv_stride, init_kernel
     return init_block_args
 
 
-def get_head_block_arg_dict(n_classes, num_feature_maps, buffer_reduction, avgpool_target_size):
+def get_head_block_args(n_classes, num_feature_maps, buffer_reduction, avgpool_target_size):
     """
     Wrap the args for the head block into a dict.
     Check Config classes for arg doc string
@@ -51,13 +51,37 @@ def sanity_check(arg, num_blocks, var_name):
     if isinstance(arg, list): assert len(arg) == num_blocks, 'Param {} length does not match'.format(var_name)
 
 
-class _BaseConfig:
+class BaseConfig:
     """
     Base configuration class
     """
 
     def __init__(self, *args):
         self.model_config = None
+        self.num_feature_maps_before_head = -1
+
+    def __getitem__(self, item):
+        """
+        Overwrite the get item method to get the model block args
+        :param item: module block key
+        :return: model args
+        """
+
+        return self.model_config[item]
+
+    def __setitem__(self, key, value):
+        """
+        Overwrite the setitem method to set the model block args
+        :param key: block key
+        :param value: block args
+        :return: void
+        """
+
+        assert isinstance(value, dict), 'model args must be a dictionary.'
+        self.model_config[key] = value
+
+    def set_up(self, *args):
+        raise NotImplemented()
 
     def save_config(self, dst_p: str):
         """
@@ -70,7 +94,7 @@ class _BaseConfig:
         assert dst_p.endswith('pkl'), 'dst_p must end with .pkl'
 
         with open(dst_p, 'wb') as file:
-            pickle.dump(obj=self.get_config(), file=file)
+            pickle.dump(obj=self.get_model_config(), file=file)
 
         print('Model configuration exported.')
 
@@ -82,29 +106,39 @@ class _BaseConfig:
         """
 
         with open(src_p, 'rb') as file:
-            self.model_config = pickle.load(file=file)
+            state = pickle.load(file=file)
+            self.model_config = state['model_config']
+            self.num_feature_maps_before_head = state['num_features_before_head']
 
         print('Model configuration loaded.')
 
-    def get_config(self):
+    def get_model_config(self):
         """
         Get the configuration
         :return: model configuration
         """
 
-        assert isinstance(self.model_config, list), 'Configuration was not set up yet.'
+        assert isinstance(self.model_config, OrderedDict), 'Configuration was not set up yet.'
         return self.model_config
 
+    def get_num_features_before_head(self):
+        """
+        Get the number of features before head.
+        :return: number of features before head
+        """
 
-class ConfigResNet(_BaseConfig):
+        return self.num_feature_maps_before_head
+
+
+class ConfigResNet(BaseConfig):
     """
     ResNet configuration.
     """
 
-    def __init__(self, n_classes: int,
-                 init_num_feature_maps: int, init_conv_stride: int, init_kernel_size: int, init_maxpool_stride: int, init_maxpool_size: int,
-                 num_res_blocks: int, num_res_unit_per_block: int or list, bb_feature_expansion: int or list, bb_space_reduction: int or list,
-                 avgpool_target_size: int, num_in_channels=3):
+    def set_up(self, n_classes: int,
+               init_num_feature_maps: int, init_conv_stride: int, init_kernel_size: int, init_maxpool_stride: int, init_maxpool_size: int,
+               num_res_blocks: int, num_res_unit_per_block: int or list, bb_feature_expansion: int or list, bb_space_reduction: int or list,
+               avgpool_target_size: int, num_in_channels=3):
         """
         Constructor.
         TODO： add per block configuration, i.e. expansion, n_unit, etc
@@ -124,17 +158,15 @@ class ConfigResNet(_BaseConfig):
         :param num_in_channels: Number of input channels, default is 3 for RGB, for gray-scale need to set to 1
         """
 
-        super().__init__()
-
         # sanity check
         sanity_check(num_blocks=num_res_blocks, arg=bb_feature_expansion, var_name='bb_feature_expansion')
         sanity_check(num_blocks=num_res_blocks, arg=bb_space_reduction, var_name='bb_space_reduction')
         sanity_check(num_blocks=num_res_blocks, arg=num_res_unit_per_block, var_name='num_res_unit_per_block')
 
         # prepare the args for the initial block
-        init_block = get_init_block_arg_dict(init_num_feature_maps=init_num_feature_maps, init_conv_stride=init_conv_stride,
-                                             init_kernel_size=init_kernel_size, init_maxpool_stride=init_maxpool_stride,
-                                             init_maxpool_size=init_maxpool_size, num_in_channels=num_in_channels)
+        init_block = get_init_block_args(init_num_feature_maps=init_num_feature_maps, init_conv_stride=init_conv_stride,
+                                         init_kernel_size=init_kernel_size, init_maxpool_stride=init_maxpool_stride,
+                                         init_maxpool_size=init_maxpool_size, num_in_channels=num_in_channels)
         self.model_config = [('init_block', init_block)]
 
         # keep track of num_feature_maps
@@ -158,22 +190,26 @@ class ConfigResNet(_BaseConfig):
             # update feature map count
             num_feature_maps = num_feature_maps * expand_ratio
 
+        # update the num feature map before head
+        self.num_feature_maps_before_head = num_feature_maps
+
         # head module
-        head_block_args = get_head_block_arg_dict(n_classes=n_classes, num_feature_maps=num_feature_maps, buffer_reduction=None,
-                                                  avgpool_target_size=avgpool_target_size)
+        head_block_args = get_head_block_args(n_classes=n_classes, num_feature_maps=num_feature_maps, buffer_reduction=None,
+                                              avgpool_target_size=avgpool_target_size)
         self.model_config.append(('avgfc_head_block', head_block_args))
+        self.model_config = OrderedDict(self.model_config)
 
 
-class ConfigDenseNet(_BaseConfig):
+class ConfigDenseNet(BaseConfig):
     """
     Densenet configuration
     """
 
-    def __init__(self, n_classes: int,
-                 init_num_feature_maps: int, init_conv_stride: int, init_kernel_size: int, init_maxpool_stride: int, init_maxpool_size: int,
-                 num_blocks: int, num_dense_unit_per_block: int or list, growth_rates: int or list, base_bottleneck_sizes: int or list,
-                 transition_space_reductions: int or list, transition_feature_reductions: int or list,
-                 dropout_rate: float, avgpool_target_size: int or tuple, num_in_channels=3, kernel_sizes=3):
+    def set_up(self, n_classes: int,
+               init_num_feature_maps: int, init_conv_stride: int, init_kernel_size: int, init_maxpool_stride: int, init_maxpool_size: int,
+               num_blocks: int, num_dense_unit_per_block: int or list, growth_rates: int or list, base_bottleneck_sizes: int or list,
+               transition_space_reductions: int or list, transition_feature_reductions: int or list,
+               dropout_rate: float, avgpool_target_size: int or tuple, num_in_channels=3, kernel_sizes=3):
         """
         Constructor
         :param n_classes: Number of classes
@@ -198,8 +234,6 @@ class ConfigDenseNet(_BaseConfig):
         :param kernel_sizes: kernel size, default is 3
         """
 
-        super().__init__()
-
         # sanity check
         sanity_check(num_blocks=num_blocks, arg=num_dense_unit_per_block, var_name='num_dense_unit_per_block')
         sanity_check(num_blocks=num_blocks, arg=growth_rates, var_name='growth_rates')
@@ -209,9 +243,9 @@ class ConfigDenseNet(_BaseConfig):
         sanity_check(num_blocks=num_blocks - 1, arg=transition_space_reductions, var_name='transition_space_reductions')
 
         # prepare the args for the initial block
-        init_block = get_init_block_arg_dict(init_num_feature_maps=init_num_feature_maps, init_conv_stride=init_conv_stride,
-                                             init_kernel_size=init_kernel_size, init_maxpool_stride=init_maxpool_stride,
-                                             init_maxpool_size=init_maxpool_size, num_in_channels=num_in_channels)
+        init_block = get_init_block_args(init_num_feature_maps=init_num_feature_maps, init_conv_stride=init_conv_stride,
+                                         init_kernel_size=init_kernel_size, init_maxpool_stride=init_maxpool_stride,
+                                         init_maxpool_size=init_maxpool_size, num_in_channels=num_in_channels)
         self.model_config = [('init_block', init_block)]
 
         # keep track of num_feature_maps
@@ -245,17 +279,19 @@ class ConfigDenseNet(_BaseConfig):
                 self.model_config.append(('transition_block_{}'.format(i+1), transition_block_args))
                 num_feature_maps = num_feature_maps // fe_reduction
 
+        # update the num feature map before head
+        self.num_feature_maps_before_head = num_feature_maps
+
         # head module
-        print(num_feature_maps, 'fc')
-        head_block_args = get_head_block_arg_dict(n_classes=n_classes, num_feature_maps=num_feature_maps,
-                                                  buffer_reduction=None, avgpool_target_size=avgpool_target_size)
+        head_block_args = get_head_block_args(n_classes=n_classes, num_feature_maps=num_feature_maps,
+                                              buffer_reduction=None, avgpool_target_size=avgpool_target_size)
         self.model_config.append(('avgfc_head_block', head_block_args))
+        self.model_config = OrderedDict(self.model_config)
 
 
-class ConfigMobileNet(_BaseConfig):
+class ConfigMobileNet(BaseConfig):
 
-    def __init__(self):
-        super().__init__()
+    def set_up(self, *args):
         pass
 
 
@@ -265,31 +301,28 @@ class Builder:
     Take the config object and build the model.
     """
 
-    def __init__(self):
-        """
-        Constructor
-        """
-
-        self.memo = {'init_block': InitConvBlock,
-                     'residual_block': ResidualBlock,
-                     'dense_block': DenseBlock,
-                     'transition_block': TransitionBlock,
-                     'avgfc_head_block': AvgPoolFCHead}
-
-    def assemble(self, config: _BaseConfig):
+    @staticmethod
+    def assemble(config: BaseConfig):
         """
         Assemble the ConvNet following the configuration
         :param config: config object
         :return: nn module
         """
 
+        memo = {'init_block': InitConvBlock,
+                'residual_block': ResidualBlock,
+                'dense_block': DenseBlock,
+                'transition_block': TransitionBlock,
+                'avgfc_head_block': AvgPoolFCHead}
+
         blocks = OrderedDict()
-        config = config.get_config()
+        config = config.get_model_config()
+
         # for each block
-        for block_name, block_args in config:
+        for block_name, block_args in config.items():
             block_name_parsed = block_name[:block_name.find('block')+5]
             # construct the block module
-            module = self.memo[block_name_parsed](**block_args)
+            module = memo[block_name_parsed](**block_args)
             blocks[block_name] = module
 
         return nn.Sequential(blocks)

@@ -318,8 +318,10 @@ class _DenseUnit(nn.Module):
         super().__init__()
 
         # dense unit start with a bottle neck layer to limit the over growth of the feature map
-        self.bottleneck = conv_relu_bn(num_in_channels=num_in_channels, num_out_channels=base_bottleneck_size * growth_rate, ksize=1, stride=1, bias=False)
-        self.convrelubn = conv_relu_bn(num_in_channels=base_bottleneck_size * growth_rate, num_out_channels=growth_rate, ksize=ksize, stride=1, bias=False)
+        self.bottleneck = conv_relu_bn(num_in_channels=num_in_channels, num_out_channels=base_bottleneck_size * growth_rate,
+                                       ksize=1, stride=1, bias=False)
+        self.convrelubn = conv_relu_bn(num_in_channels=base_bottleneck_size * growth_rate, num_out_channels=growth_rate,
+                                       ksize=ksize, stride=1, bias=False)
         self.dropout = nn.Dropout(p=drop_rate)
 
     def forward(self, x: Tensor):

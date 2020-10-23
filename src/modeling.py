@@ -11,12 +11,13 @@ import random
 
 import copy
 import torch
-from datautils.datahandler import DataHandler
-from datetime import datetime
 import torch.nn as nn
 from sklearn import metrics
 from torch.optim.lr_scheduler import *
 from torch.optim.optimizer import Optimizer
+from datautils.datahandler import DataHandler
+from builder import *
+from datetime import datetime
 from tqdm.notebook import tqdm
 from functools import partial
 import numpy as np
@@ -255,11 +256,16 @@ class _Logger:
 
 
 class __BaseAgent:
+    """
+    TODO: save the model architecture when initialize
+    TODO: add the support for transfer learning
+    """
 
-    def __init__(self, model: nn.Module, loss_module: nn.Module or None,
+    def __init__(self, model: nn.Module or BaseConfig, loss_module: nn.Module or None,
                  n_classes: int, criteria: str, verbose: bool,
                  optimizer: partial or None, scheduler: partial or None,
                  prefix: str, checkpoint_folder: str,
+                 new_head_args=None, blocks_to_freeze=None,
                  *args):
         """
         Abstract class of Base Agent.
@@ -272,8 +278,16 @@ class __BaseAgent:
         # agent type
         self.agent = None
 
-        # model and key settings
-        self.model = model
+        # key model settings
+        # set up the model config instance if provided
+        self.model_config = None
+        if isinstance(model, nn.Module):
+            self.model = model
+        elif isinstance(model, BaseConfig):
+            self.model_config = model
+            self.model = Builder.assemble(self.model_config)
+        else:
+            raise Exception('Model must be either an nn.Module or a Config instance')
         self.loss_module = loss_module
         self.n_classes = n_classes
         self.criteria = criteria
@@ -288,15 +302,27 @@ class __BaseAgent:
         self.checkpoint_folder = checkpoint_folder
         self.prefix = prefix
 
+        # set up args for transfer learning
+        # when new_head_args is not None, transfer learning is activated
+        # the model config instance will be modified during initialization
+        self.new_head_args = new_head_args
+        self.blocks_to_freeze = blocks_to_freeze
+        if self.new_head_args is not None:
+            error_msg1 = "new_head_args must be a dictionary, use builder.get_head_block_args() to get the arg dict"
+            assert isinstance(new_head_args, dict), error_msg1
+            error_msg2 = "When new_head_args is provided, model arg must be a Config instance."
+            assert isinstance(self.model_config, BaseConfig), error_msg2
+
         # initialize logger
         self.logger = _Logger(n_classes=n_classes, criteria=criteria, verbose=verbose)
 
-    def initialize(self, device: str, n_threads=12):
+    def initialize(self, device: str, n_threads=12, pretraiend_param_path=None):
         """
         Initialize the optimizer and the scheduler.
         Put the model on the specified device
         :param device: which device to be trained on e.g. 'cpu' - on cpu, 'cuda:0' - on gpu 0, 'cuda:1' - on gpu 1
         :param n_threads: configure the thread usage, only applicable when using cpu for computing
+        :param pretraiend_param_path: path to pretrained model param
         :return: void
         """
 
@@ -314,6 +340,28 @@ class __BaseAgent:
         # use scheduler
         if self.scheduler is not None:
             self.scheduler = self.scheduler(optimizer=self.optimizer)
+
+        # load the pretrained param if provided
+        if pretraiend_param_path is not None:
+            error_msg = 'pretrained_param_path must be a string and end with .pth'
+            assert isinstance(pretraiend_param_path, str) and pretraiend_param_path.endswith('pth'), error_msg
+            meta_state = torch.load(f=pretraiend_param_path, map_location='cpu')
+            model_state = meta_state['model_state'] if 'model_state' in meta_state else meta_state
+            self.model.load_state_dict(model_state)
+
+            # replace the old head with new head
+            if self.new_head_args is not None:
+                self.model.avgfc_head_block = AvgPoolFCHead(**self.new_head_args)
+                print('Head module has been replaced.')
+
+            # turn on/off the requires_gradient
+            for (param_name, param) in self.model.named_parameters():
+                requires_grad = True
+                for frozen_block in self.blocks_to_freeze:
+                    if param_name.startswith(frozen_block):  # decide which block to freeze based on the prefix
+                        requires_grad = False
+                        print("Param {} requires_grad was turned off".format(param_name))
+                param.requires_grad = requires_grad
 
     def load_model_params(self, model_state_dict: dict):
         """
@@ -378,14 +426,15 @@ class Trainer(__BaseAgent):
     TODO: describe usage
     """
 
-    def __init__(self, model: nn.Module, loss_module: nn.Module,
+    def __init__(self, model: nn.Module or Builder or BaseConfig, loss_module: nn.Module,
                  n_classes: int, criteria: str,
                  optimizer: partial or torch.optim.optimizer.Optimizer, scheduler: partial or None,
                  prefix: str, checkpoint_folder: str,
-                 verbose=False):
+                 new_head_args=None, blocks_to_freeze=None, verbose=False):
         """
         Constructor
-        :param model: model architecture
+        :param model: model architecture (nn.Module) or a Builder/Config Instance that builds the model. For transfer learning, pass the Config
+        Instance.
         :param loss_module: loss module
         :param n_classes: number of classes
         :param criteria: criteria for model selection: accuracy, precision, recall and f1 score (will use micro average)
@@ -394,14 +443,17 @@ class Trainer(__BaseAgent):
         lr=1e-5, ...)) instance initialization will be handled by the trainer
         :param scheduler: learning rate scheduler. pass the interface instead of the instance
         :param prefix: checkpoint naming prefix
-        :param checkpoint_folder: checkpoint directory
+        :param checkpoint_folder: checkpoint
+        :param new_head_args: arg for transfer learning. If pass an nn.Module, the module will replace the current head block. The
+        :param blocks_to_freeze: arg for transfer learning. Pass the block prefix to freeze the blocks, e.g. ['init_block'] will freeze all
+        parameters whose name starting with 'init_block'.
         :param verbose: whether to print out additional message for debugging
         """
 
         super().__init__(model=model, loss_module=loss_module,
                          n_classes=n_classes, criteria=criteria, verbose=verbose,
                          optimizer=optimizer, scheduler=scheduler,
-                         prefix=prefix, checkpoint_folder=checkpoint_folder)
+                         prefix=prefix, checkpoint_folder=checkpoint_folder, new_head_args=new_head_args, blocks_to_freeze=blocks_to_freeze)
         self.agent = 'trainer'
 
     def train(self, datahandler: DataHandler, epochs, seed):
