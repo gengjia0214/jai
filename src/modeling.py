@@ -241,7 +241,7 @@ class _Logger:
     def get_best_predictions(self):
         """
         Getter to get the predictions of the best epoch
-        :return: grouth truth and predictions
+        :return: ground truth and predictions
         """
 
         return self.best_ground_truths, self.best_predictions
@@ -258,14 +258,14 @@ class _Logger:
 class __BaseAgent:
     """
     TODO: save the model architecture when initialize
-    TODO: add the support for transfer learning
+    TODO: test the support for transfer learning
     """
 
-    def __init__(self, model: nn.Module or BaseConfig, loss_module: nn.Module or None,
+    def __init__(self, model: nn.Module or ModelConfig, loss_module: nn.Module or None,
                  n_classes: int, criteria: str, verbose: bool,
                  optimizer: partial or None, scheduler: partial or None,
                  prefix: str, checkpoint_folder: str,
-                 new_head_args=None, blocks_to_freeze=None,
+                 new_head=None, blocks_to_freeze=None,
                  *args):
         """
         Abstract class of Base Agent.
@@ -280,12 +280,10 @@ class __BaseAgent:
 
         # key model settings
         # set up the model config instance if provided
-        self.model_config = None
         if isinstance(model, nn.Module):
             self.model = model
-        elif isinstance(model, BaseConfig):
-            self.model_config = model
-            self.model = Builder.assemble(self.model_config)
+        elif isinstance(model, ModelConfig):
+            self.model = Builder.assemble(model)
         else:
             raise Exception('Model must be either an nn.Module or a Config instance')
         self.loss_module = loss_module
@@ -305,21 +303,23 @@ class __BaseAgent:
         # set up args for transfer learning
         # when new_head_args is not None, transfer learning is activated
         # the model config instance will be modified during initialization
-        self.new_head_args = new_head_args
+        self.new_head = new_head
         self.blocks_to_freeze = blocks_to_freeze
-        if self.new_head_args is not None:
-            error_msg1 = "new_head_args must be a dictionary, use builder.get_head_block_args() to get the arg dict"
-            assert isinstance(new_head_args, dict), error_msg1
-            error_msg2 = "When new_head_args is provided, model arg must be a Config instance."
-            assert isinstance(self.model_config, BaseConfig), error_msg2
+        if self.new_head is not None:
+            # sanity check
+            error_msg1 = "new_head_args must be a nn.module or a dictionary, use builder.get_head_block_args() to get the arg dict"
+            assert isinstance(self.new_head, dict) or isinstance(self.new_head, nn.Module), error_msg1
+            error_msg2 = "When new head is provided, the model arg must be a ModelConfig instead of nn.Module."
+            assert isinstance(self.model, ModelConfig), error_msg2
 
         # initialize logger
         self.logger = _Logger(n_classes=n_classes, criteria=criteria, verbose=verbose)
 
     def initialize(self, device: str, n_threads=12, pretraiend_param_path=None):
         """
-        Initialize the optimizer and the scheduler.
-        Put the model on the specified device
+        Initialize the model, optimizer and the scheduler.
+        Put the model on the specified device.
+        Optionally, load the pretrained params and replace the head module (if new_head is not None) for transfer learning.
         :param device: which device to be trained on e.g. 'cpu' - on cpu, 'cuda:0' - on gpu 0, 'cuda:1' - on gpu 1
         :param n_threads: configure the thread usage, only applicable when using cpu for computing
         :param pretraiend_param_path: path to pretrained model param
@@ -343,18 +343,29 @@ class __BaseAgent:
 
         # load the pretrained param if provided
         if pretraiend_param_path is not None:
-            error_msg = 'pretrained_param_path must be a string and end with .pth'
+            # sanity check
+            error_msg = 'pretrained_param_path must end with .pth'
             assert isinstance(pretraiend_param_path, str) and pretraiend_param_path.endswith('pth'), error_msg
             meta_state = torch.load(f=pretraiend_param_path, map_location='cpu')
+
+            # load the model state
+            # compatible with pure model state or the logger output
             model_state = meta_state['model_state'] if 'model_state' in meta_state else meta_state
             self.model.load_state_dict(model_state)
 
             # replace the old head with new head
-            if self.new_head_args is not None:
-                self.model.avgfc_head_block = AvgPoolFCHead(**self.new_head_args)
+            if self.new_head is not None:
+
+                # sanity check, the model must have the avgfc_head_block
+                error_msg = 'Model does not have the avgfc_head_block. Head replacement only supports the models created by the Builder class'
+                assert 'avgfc_head_block' in [name[0] for name in self.model.named_modules()], error_msg
+
+                # set it to the new head
+                new_head = AvgPoolFCHead(**self.new_head) if isinstance(self.new_head, dict) else self.new_head
+                self.model.avgfc_head_block = new_head
                 print('Head module has been replaced.')
 
-            # turn on/off the requires_gradient
+            # turn on/off the requires_grads
             for (param_name, param) in self.model.named_parameters():
                 requires_grad = True
                 for frozen_block in self.blocks_to_freeze:
@@ -426,11 +437,11 @@ class Trainer(__BaseAgent):
     TODO: describe usage
     """
 
-    def __init__(self, model: nn.Module or Builder or BaseConfig, loss_module: nn.Module,
+    def __init__(self, model: nn.Module or Builder or ModelConfig, loss_module: nn.Module,
                  n_classes: int, criteria: str,
                  optimizer: partial or torch.optim.optimizer.Optimizer, scheduler: partial or None,
                  prefix: str, checkpoint_folder: str,
-                 new_head_args=None, blocks_to_freeze=None, verbose=False):
+                 new_head=None, blocks_to_freeze=None, verbose=False):
         """
         Constructor
         :param model: model architecture (nn.Module) or a Builder/Config Instance that builds the model. For transfer learning, pass the Config
@@ -444,7 +455,7 @@ class Trainer(__BaseAgent):
         :param scheduler: learning rate scheduler. pass the interface instead of the instance
         :param prefix: checkpoint naming prefix
         :param checkpoint_folder: checkpoint
-        :param new_head_args: arg for transfer learning. If pass an nn.Module, the module will replace the current head block. The
+        :param new_head: arg for transfer learning. If pass an nn.Module, the module will replace the current head block. The
         :param blocks_to_freeze: arg for transfer learning. Pass the block prefix to freeze the blocks, e.g. ['init_block'] will freeze all
         parameters whose name starting with 'init_block'.
         :param verbose: whether to print out additional message for debugging
@@ -453,7 +464,8 @@ class Trainer(__BaseAgent):
         super().__init__(model=model, loss_module=loss_module,
                          n_classes=n_classes, criteria=criteria, verbose=verbose,
                          optimizer=optimizer, scheduler=scheduler,
-                         prefix=prefix, checkpoint_folder=checkpoint_folder, new_head_args=new_head_args, blocks_to_freeze=blocks_to_freeze)
+                         prefix=prefix, checkpoint_folder=checkpoint_folder,
+                         new_head=new_head, blocks_to_freeze=blocks_to_freeze)
         self.agent = 'trainer'
 
     def train(self, datahandler: DataHandler, epochs, seed):
@@ -630,6 +642,7 @@ class Evaluator(__BaseAgent):
         :param checkpoint_folder: checkpoint directory
         :param verbose: whether to print out additional message for debugging
         """
+
         super().__init__(model=model, loss_module=None,
                          n_classes=n_classes, criteria=criteria, verbose=verbose,
                          optimizer=None, scheduler=None,

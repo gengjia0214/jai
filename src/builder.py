@@ -51,7 +51,7 @@ def sanity_check(arg, num_blocks, var_name):
     if isinstance(arg, list): assert len(arg) == num_blocks, 'Param {} length does not match'.format(var_name)
 
 
-class BaseConfig:
+class ModelConfig:
     """
     Base configuration class
     """
@@ -130,7 +130,7 @@ class BaseConfig:
         return self.num_feature_maps_before_head
 
 
-class ConfigResNet(BaseConfig):
+class ResNetConfig(ModelConfig):
     """
     ResNet configuration.
     """
@@ -200,7 +200,7 @@ class ConfigResNet(BaseConfig):
         self.model_config = OrderedDict(self.model_config)
 
 
-class ConfigDenseNet(BaseConfig):
+class DenseNetConfig(ModelConfig):
     """
     Densenet configuration
     """
@@ -289,7 +289,7 @@ class ConfigDenseNet(BaseConfig):
         self.model_config = OrderedDict(self.model_config)
 
 
-class ConfigMobileNet(BaseConfig):
+class MobileNetConfig(ModelConfig):
 
     def set_up(self, *args):
         pass
@@ -302,7 +302,7 @@ class Builder:
     """
 
     @staticmethod
-    def assemble(config: BaseConfig):
+    def assemble(config: ModelConfig):
         """
         Assemble the ConvNet following the configuration
         :param config: config object
