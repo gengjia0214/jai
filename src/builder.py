@@ -26,10 +26,14 @@ def get_init_block_args(init_num_feature_maps, init_conv_stride, init_kernel_siz
     return init_block_args
 
 
-def get_head_block_args(n_classes, num_feature_maps, buffer_reduction, avgpool_target_size):
+def get_head_block_args(n_classes: int, num_feature_maps: int, avgpool_target_size=(1, 1), buffer_reduction=None):
     """
     Wrap the args for the head block into a dict.
     Check Config classes for arg doc string
+    :param n_classes: number of classes
+    :param num_feature_maps: number of feature maps of the conv output (i.e. the input feature map for head block)
+    :param avgpool_target_size: target size for the average pooling later
+    :param buffer_reduction: whether to use a buffer layer, e.g. fc-fc-
     :return: head block args dictionary
     """
 

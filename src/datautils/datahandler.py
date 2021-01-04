@@ -144,6 +144,7 @@ class ImgDataset(Dataset):
 
         # data
         self.packed_data = data_packer.get_packed_data()
+        self.state = 'train'
 
         # idx to img_id to make get_item work
         self.idx2id = {i: img_id for i, img_id in enumerate(self.packed_data['data'])}
@@ -188,7 +189,7 @@ class ImgDataset(Dataset):
             img = ToPILImage()(img)
 
         # apply augmentations
-        if self.augmentations is not None:
+        if self.state == 'train' and self.augmentations is not None:
             img = self.augmentations(img)
 
         # check type
@@ -199,6 +200,10 @@ class ImgDataset(Dataset):
         if self.pre_processing is not None:
             img = self.pre_processing(img)
 
+        # check type
+        if isinstance(img, Image.Image):
+            img = ToTensor()(img)
+
         # get the labels
         label = self.packed_data['labels'][data_id]
 
@@ -208,8 +213,6 @@ class ImgDataset(Dataset):
         if 'info' in self.packed_data:
             output['info'] = self.packed_data['info'][data_id]
 
-        # TODO: need to test the data mini-batching for annotation. Might need to return label and other useful annotation such as area etc
-        #  respectively. Add some more later
         return output
 
     def __len__(self):
@@ -219,6 +222,12 @@ class ImgDataset(Dataset):
         """
 
         return len(self.idx2id)
+
+    def eval(self):
+        self.state = 'eval'
+
+    def train(self):
+        self.state = 'train'
 
     @staticmethod
     def __sanity_check(funcs: list):
@@ -254,8 +263,10 @@ class DataHandler:
 
         self.dataloaders = {'train': None, 'eval': None}
         if train_dataset is not None:
+            train_dataset.train()
             self.dataloaders['train'] = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
         if eval_dataset is not None:
+            eval_dataset.eval()
             self.dataloaders['eval'] = DataLoader(dataset=eval_dataset, batch_size=batch_size, shuffle=False)
 
     def __getitem__(self, phase: str):

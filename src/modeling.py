@@ -154,7 +154,7 @@ class _Logger:
         # compute the performance metrics
         perf_metrics = compute_metric(ground_truth=self.temp_ground_truth[phase], prediction=self.temp_prediction[phase])
         acc = perf_metrics['accuracy']
-        selected_metric = perf_metrics[criteria]['micro'] if criteria != 'accuracy' else acc
+        selected_metric = perf_metrics[criteria]['macro'] if criteria != 'accuracy' else acc
 
         # for eval phase => reset temp pointer & check whether get better performance
         if phase == 'eval':
@@ -304,25 +304,25 @@ class __BaseAgent:
         # when new_head_args is not None, transfer learning is activated
         # the model config instance will be modified during initialization
         self.new_head = new_head
-        self.blocks_to_freeze = blocks_to_freeze
+        self.blocks_to_freeze = blocks_to_freeze if blocks_to_freeze is not None else []
         if self.new_head is not None:
             # sanity check
             error_msg1 = "new_head_args must be a nn.module or a dictionary, use builder.get_head_block_args() to get the arg dict"
             assert isinstance(self.new_head, dict) or isinstance(self.new_head, nn.Module), error_msg1
             error_msg2 = "When new head is provided, the model arg must be a ModelConfig instead of nn.Module."
-            assert isinstance(self.model, ModelConfig), error_msg2
+            assert not isinstance(self.model, ModelConfig), error_msg2
 
         # initialize logger
         self.logger = _Logger(n_classes=n_classes, criteria=criteria, verbose=verbose)
 
-    def initialize(self, device: str, n_threads=12, pretraiend_param_path=None):
+    def initialize(self, device: str, pretrained_param_path=None, n_threads=12):
         """
         Initialize the model, optimizer and the scheduler.
         Put the model on the specified device.
         Optionally, load the pretrained params and replace the head module (if new_head is not None) for transfer learning.
         :param device: which device to be trained on e.g. 'cpu' - on cpu, 'cuda:0' - on gpu 0, 'cuda:1' - on gpu 1
+        :param pretrained_param_path: path to pretrained model param
         :param n_threads: configure the thread usage, only applicable when using cpu for computing
-        :param pretraiend_param_path: path to pretrained model param
         :return: void
         """
 
@@ -331,6 +331,7 @@ class __BaseAgent:
 
         # move model to device before initialize the optimizers and scheduler
         self.model = self.model.to(device)
+        self.loss_module = self.loss_module.to(device)
         self.device = device
 
         # initialize the optimizer and scheduler
@@ -342,11 +343,11 @@ class __BaseAgent:
             self.scheduler = self.scheduler(optimizer=self.optimizer)
 
         # load the pretrained param if provided
-        if pretraiend_param_path is not None:
+        if pretrained_param_path is not None:
             # sanity check
             error_msg = 'pretrained_param_path must end with .pth'
-            assert isinstance(pretraiend_param_path, str) and pretraiend_param_path.endswith('pth'), error_msg
-            meta_state = torch.load(f=pretraiend_param_path, map_location='cpu')
+            assert isinstance(pretrained_param_path, str) and pretrained_param_path.endswith('pth'), error_msg
+            meta_state = torch.load(f=pretrained_param_path, map_location='cpu')
 
             # load the model state
             # compatible with pure model state or the logger output
@@ -362,6 +363,7 @@ class __BaseAgent:
 
                 # set it to the new head
                 new_head = AvgPoolFCHead(**self.new_head) if isinstance(self.new_head, dict) else self.new_head
+                new_head = new_head.to(self.device)
                 self.model.avgfc_head_block = new_head
                 print('Head module has been replaced.')
 
@@ -434,7 +436,9 @@ class __BaseAgent:
 
 class Trainer(__BaseAgent):
     """
-    TODO: describe usage
+    TODO: tutorials
+    TODO: make it able to choose micro/macro for model selection
+    TODO: simplify the transfer learning pipeline, should just take a boolean and do the modification on the config inplace
     """
 
     def __init__(self, model: nn.Module or Builder or ModelConfig, loss_module: nn.Module,
@@ -448,7 +452,7 @@ class Trainer(__BaseAgent):
         Instance.
         :param loss_module: loss module
         :param n_classes: number of classes
-        :param criteria: criteria for model selection: accuracy, precision, recall and f1 score (will use micro average)
+        :param criteria: criteria for model selection: accuracy, precision, recall and f1 score (will use macro average)
         :param optimizer: parameter optimizer. DO NOT pass the instance (i.e. DO NOT do encoder_optimizer=Adam(...)) instead, just pass the Class
         interface (i.e. encoder_optimizer=Adam) or, if need to specify the optimizer params, use partial: (e.g. encoder_optimizer=partial(Adam,
         lr=1e-5, ...)) instance initialization will be handled by the trainer
@@ -637,7 +641,7 @@ class Evaluator(__BaseAgent):
         Constructor
         :param model: model architecture
         :param n_classes: number of classes
-        :param criteria: criteria for model selection: accuracy, precision, recall and f1 score (will use micro average)
+        :param criteria: criteria for model selection: accuracy, precision, recall and f1 score (will use macro average)
         :param prefix: checkpoint naming prefix
         :param checkpoint_folder: checkpoint directory
         :param verbose: whether to print out additional message for debugging

@@ -30,8 +30,6 @@ class WeightedCrossEntropy(nn.Module):
         elif len(weights) != n_classes:
             raise Exception('Weight length {} does not match with number of classes {}'.format(len(weights), n_classes))
 
-        # flag for device TODO: find a better way to handle the device management
-        self.on_device = False
         self.loss_module = nn.CrossEntropyLoss(weight=torch.Tensor(weights))
 
     def forward(self, X: Tensor, Y: Tensor):
@@ -41,10 +39,6 @@ class WeightedCrossEntropy(nn.Module):
         :param Y: target
         :return: loss in Tensor
         """
-
-        if not self.on_device:
-            self.loss_module.weight = self.loss_module.weight.to(X.device)
-            self.on_device = True
 
         loss = self.loss_module.forward(input=X, target=Y)
 
