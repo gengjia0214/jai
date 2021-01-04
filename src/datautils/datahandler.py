@@ -37,21 +37,23 @@ def default_augmentation(p):
     # 0.25 chance of get color jittered (disable the jitter on hue as it would require PIL input)
     jitter = RandomApply([ColorJitter(brightness=0.25, contrast=0.25, saturation=0.25, hue=0)], p=0.25)
 
-    return [ToPILImage(), flip, jitter]
+    return [flip, jitter]
 
 
 class DataPackerAbstract:
     """
     An abstract class for packing the dataset.
-    The abstract will make sure the packed data container class will be compatible with the ProcDataset
+    The abstract will make sure the packed data container class will be compatible with the ImgDataset
     """
 
     def __init__(self):
 
         self.mode = None  # mode
+
+        # below should all be dict format {id: xxx, ...}
         self.data_src = None  # data src should contains id & image data or image fp
         self.labels = None  # labels
-        self.annotations = None  # other annotations for the data, should contains id & annotations if provided
+        self.additional_info = None  # other information of the data such as bbox locations, etc
 
     def __len__(self):
         """
@@ -70,7 +72,7 @@ class DataPackerAbstract:
         Should support 2 modes:
         - data in memory
         - data in disk
-        - annotations should be load in memory
+        - additional information should be loaded on memory
         """
 
         raise NotImplemented()
@@ -86,22 +88,22 @@ class DataPackerAbstract:
         # sanity check
         assert isinstance(self.data_src, dict), 'Data source should be a dictionary with key: id'
         assert isinstance(self.labels, dict), 'Labels should be a dictionary with key: id'
-        if self.annotations is not None: assert isinstance(self.labels, dict), 'Annotation should be a dictionary with key: id'
+        if self.additional_info is not None: assert isinstance(self.labels, dict), 'Annotation should be a dictionary with key: id'
         assert self.mode in ['disk', 'memory'], 'model must be either disk or memory'
 
         for data_id in self.data_src:
-            if self.annotations is not None and data_id not in self.annotations:
+            if self.additional_info is not None and data_id not in self.additional_info:
                 raise Exception('Data id={} from data src can not be found in annotation.'.format(data_id))
 
         output = {'mode': self.mode, 'data': self.data_src, 'labels': self.labels}
-        if self.annotations is not None:
-            output['annotations'] = self.annotations
+        if self.additional_info is not None:
+            output['info'] = self.additional_info
 
         return output
 
     def split(self, *args):
         """
-        Split the packed data into train and evaluation, test
+        Split the packed data into train, eval, test packer
         """
 
         raise NotImplemented()
@@ -130,7 +132,7 @@ class ImgDataset(Dataset):
     Use .train() or .eval() to turn on or off the augmentation
     """
 
-    def __init__(self, data_packer: DataPackerAbstract, pre_pipeline: list or None, augmentations: list or None, data_src_dir=None):
+    def __init__(self, data_packer: DataPackerAbstract, pre_pipeline: list or None, augmentations: list or None):
         """
         Constructor
         :param data_packer: A packed data object. The object class should inherit the PackedDataAbstract
@@ -138,12 +140,10 @@ class ImgDataset(Dataset):
         no need to pass it again.
         :param augmentations: Data augmentations. If not None, pass a list of augmentation module. At training time, each image will be
         augmented by the provided augmentation technique.
-        :param data_src_dir: the directory for the data, useful when mode is disk, if None, treat the path provided as full path
         """
 
         # data
         self.packed_data = data_packer.get_packed_data()
-        self.parent_dir = data_src_dir
 
         # idx to img_id to make get_item work
         self.idx2id = {i: img_id for i, img_id in enumerate(self.packed_data['data'])}
@@ -164,7 +164,7 @@ class ImgDataset(Dataset):
     def __getitem__(self, idx: int):
         """
         Get item method
-        :param idx:
+        :param idx: the data idx
         :return: data and annotations
         """
 
@@ -176,13 +176,16 @@ class ImgDataset(Dataset):
 
         # get he image
         if mode == 'disk':
-            base_path = self.packed_data['data'][data_id]
-            fp = os.path.join(self.parent_dir, base_path) if self.parent_dir is not None else base_path
+            fp = self.packed_data['data'][data_id]
             img = Image.open(fp=fp)
         elif mode == 'memory':
             img = self.packed_data['data'][data_id]
         else:
             raise Exception('Mode must be either disk or memory but was {}'.format(mode))
+
+        # check type
+        if not isinstance(img, Image.Image):
+            img = ToPILImage()(img)
 
         # apply augmentations
         if self.augmentations is not None:
@@ -202,8 +205,8 @@ class ImgDataset(Dataset):
         output = {'x': img, 'y': label}
 
         # get the additional annotations, if any
-        if 'annotations' in self.packed_data:
-            output['annotations'] = self.packed_data['annotations'][data_id]
+        if 'info' in self.packed_data:
+            output['info'] = self.packed_data['info'][data_id]
 
         # TODO: need to test the data mini-batching for annotation. Might need to return label and other useful annotation such as area etc
         #  respectively. Add some more later
