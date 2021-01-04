@@ -1,0 +1,12 @@
+1. Reaccess the progress for transfer learning, make it support AvgPoolFCHead is fine. Should be able to take both the head args as a dict or the
+module
+
+2. Test the transfer learning and the block freezing
+
+3. Implement the mobile net
+
+4. Think about a layout of the CNN trials and architecture design.
+
+5. Implement the rotidata set class
+
+5. Start the pretrain.
