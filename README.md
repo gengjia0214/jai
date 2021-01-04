@@ -20,17 +20,13 @@ PyPI: https://pypi.org/project/jai/
 **jai** is a LEGO-style PyTorch-based Deep Learning Library. 
 The main idea behind **jai** is to reduce the amount of time spent on building all sort of pipelines or sockets to plugin those fancy deep learning tricks. This project also tend to create some handy toolkits for Kaggle.
 
-## Dev. Plan
-
-Implement anything popped up in my head when I got time and coffee...
-
 ## Installation
 
-`pip install jai` (jai on PyPI is currently on a depreciated version)
+`pip install jai` (**jai on PyPI is currently on a depreciated version**)
 
-## Library Walk Through 
+## Tutorials 
 
-Update soon
+Coming soon.
 
 
 
