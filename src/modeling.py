@@ -18,7 +18,8 @@ from torch.optim.optimizer import Optimizer
 from datautils.datahandler import DataHandler
 from builder import *
 from datetime import datetime
-from tqdm.notebook import tqdm
+from tqdm.notebook import tqdm as tqdm_notebook
+from tqdm import tqdm as tqdm_terminal
 from functools import partial
 import numpy as np
 import pickle
@@ -66,8 +67,8 @@ class _Logger:
         :param verbose: whether to print out the logging process, turn on for debugging
         """
 
-        # TODO: sanity check and string types
         # At least need to use top-1 acc, should also support one more criteria
+        assert criteria in ['accuracy', 'recall', 'precision', 'f1']
         self.criteria = criteria
         self.n_classes = n_classes
         self.verbose = verbose
@@ -257,8 +258,8 @@ class _Logger:
 
 class __BaseAgent:
     """
-    TODO: save the model architecture when initialize
-    TODO: test the support for transfer learning
+    Agent interface class
+    Parent class for Trainer and Evaluator
     """
 
     def __init__(self, model: nn.Module or ModelConfig, loss_module: nn.Module or None,
@@ -277,6 +278,8 @@ class __BaseAgent:
 
         # agent type
         self.agent = None
+        self.running_env = 'notebook'
+        self.pbar = {'notebook': tqdm_notebook, 'terminal': tqdm_terminal}
 
         # key model settings
         # set up the model config instance if provided
@@ -357,14 +360,14 @@ class __BaseAgent:
             # replace the old head with new head
             if self.new_head is not None:
 
-                # sanity check, the model must have the avgfc_head_block
-                error_msg = 'Model does not have the avgfc_head_block. Head replacement only supports the models created by the Builder class'
-                assert 'avgfc_head_block' in [name[0] for name in self.model.named_modules()], error_msg
+                # sanity check, the model must have the head_block
+                error_msg = 'Model does not have the head_block. Head replacement only supports the models created by the Builder class'
+                assert 'head_block' in [name[0] for name in self.model.named_modules()], error_msg
 
                 # set it to the new head
                 new_head = AvgPoolFCHead(**self.new_head) if isinstance(self.new_head, dict) else self.new_head
                 new_head = new_head.to(self.device)
-                self.model.avgfc_head_block = new_head
+                self.model.head_block = new_head
                 print('Head module has been replaced.')
 
             # turn on/off the requires_grads
@@ -433,12 +436,27 @@ class __BaseAgent:
 
         self.logger.reset()
 
+    def use_notebook(self):
+        """
+        Switch to notebook mode - affect the tqdm pbar
+        :return: void
+        """
+
+        self.running_env = 'notebook'
+
+    def use_terminal(self):
+        """
+        Switch to terminal mode - affect the tqdm pbar
+        :return: void
+        """
+
+        self.running_env = 'terminal'
+
 
 class Trainer(__BaseAgent):
     """
     TODO: tutorials
     TODO: make it able to choose micro/macro for model selection
-    TODO: simplify the transfer learning pipeline, should just take a boolean and do the modification on the config inplace
     """
 
     def __init__(self, model: nn.Module or Builder or ModelConfig, loss_module: nn.Module,
@@ -500,7 +518,7 @@ class Trainer(__BaseAgent):
                           'eval': {}}
 
         # main loop
-        for epoch in tqdm(range(self.base_epoch, epochs), total=epochs - self.base_epoch, desc='Epochs'):
+        for epoch in self.pbar[self.running_env](range(self.base_epoch, epochs), total=epochs - self.base_epoch, desc='Epochs'):
             print("=====Start Epoch {}======\n".format(epoch))
 
             for phase in ['train', 'eval']:
@@ -514,7 +532,7 @@ class Trainer(__BaseAgent):
                     self.loss_module.eval()  # might not be necessary as the loss function does not hold any params
 
                 pbar_msg = 'Epoch {} Phase {}'.format(epoch, phase)
-                for i, mini_batch in tqdm(enumerate(datahandler[phase]), total=len(datahandler[phase]), desc=pbar_msg):
+                for i, mini_batch in self.pbar[self.running_env](enumerate(datahandler[phase]), total=len(datahandler[phase]), desc=pbar_msg):
 
                     # zero the gradient
                     if phase == 'train':
@@ -667,7 +685,7 @@ class Evaluator(__BaseAgent):
             self.load_checkpoint()
 
         # main loop
-        for i, mini_batch in tqdm(enumerate(datahandler['eval']), total=len(datahandler['eval']), desc='Evaluation'):
+        for i, mini_batch in self.pbar[self.running_env](enumerate(datahandler['eval']), total=len(datahandler['eval']), desc='Evaluation'):
 
             # grab X, Y
             X_mini_batch, Y_mini_batch = mini_batch['x'], mini_batch['y']
