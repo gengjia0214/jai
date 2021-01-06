@@ -35,7 +35,7 @@ class Cifar10Packer(DataPackerAbstract):
     def pack(self, prefix='data_batch'):
         """
         Pack the data batch into full batch and put data on memory
-        :param prefix: prefix for data batch files
+        :param prefix: prefix for data batch files. Use 'data_batch' for getting the training data. Use 'test_batch' for getting the testing data
         :return: void
         """
 
@@ -87,7 +87,6 @@ class Cifar10Packer(DataPackerAbstract):
     def get_mean_std(self):
         """
         Get the mean and the std of the data (over pixels for each channel)
-        :param size: image size, should be 32x32 for cifar10
         :return: mean, std
         """
 
@@ -108,7 +107,7 @@ class Cifar10Packer(DataPackerAbstract):
         :param train_ratio: train ratio
         :param seed: random seed
         :param use_copy: whether to use copy
-        :return: training Cifar10Packrt object and eval Cifar10Packrt
+        :return: training Cifar10 Packer object and eval Cifar10Packrt
         """
 
         # fix seed
