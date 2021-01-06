@@ -96,9 +96,11 @@ class ModelConfig:
 
         assert os.path.isdir(os.path.dirname(dst_p)), 'Invalid directory'
         assert dst_p.endswith('pkl'), 'dst_p must end with .pkl'
+        out_config = {'model_config': self.get_model_config(),
+                      'num_features_before_head': self.get_num_features_before_head()}
 
         with open(dst_p, 'wb') as file:
-            pickle.dump(obj=self.get_model_config(), file=file)
+            pickle.dump(obj=out_config, file=file)
 
         print('Model configuration exported.')
 
@@ -142,10 +144,9 @@ class ResNetConfig(ModelConfig):
     def set_up(self, n_classes: int,
                init_num_feature_maps: int, init_conv_stride: int, init_kernel_size: int, init_maxpool_stride: int, init_maxpool_size: int,
                num_res_blocks: int, num_res_unit_per_block: int or list, bb_feature_expansion: int or list, bb_space_reduction: int or list,
-               avgpool_target_size: int, num_in_channels=3):
+               avgpool_target_size=1, num_in_channels=3):
         """
         Constructor.
-        TODO： add per block configuration, i.e. expansion, n_unit, etc
         :param n_classes: number of classes to be predicted
         :param init_num_feature_maps: Number of feature maps for the initial block output (commonly 16, 32, or 64)
         :param init_conv_stride: Initial block conv layer stride (1 or 2)
@@ -200,20 +201,20 @@ class ResNetConfig(ModelConfig):
         # head module
         head_block_args = get_head_block_args(n_classes=n_classes, num_feature_maps=num_feature_maps, buffer_reduction=None,
                                               avgpool_target_size=avgpool_target_size)
-        self.model_config.append(('avgfc_head_block', head_block_args))
+        self.model_config.append(('head_block', head_block_args))
         self.model_config = OrderedDict(self.model_config)
 
 
 class DenseNetConfig(ModelConfig):
     """
-    Densenet configuration
+    DenseNet configuration
     """
 
     def set_up(self, n_classes: int,
                init_num_feature_maps: int, init_conv_stride: int, init_kernel_size: int, init_maxpool_stride: int, init_maxpool_size: int,
                num_blocks: int, num_dense_unit_per_block: int or list, growth_rates: int or list, base_bottleneck_sizes: int or list,
                transition_space_reductions: int or list, transition_feature_reductions: int or list,
-               dropout_rate: float, avgpool_target_size: int or tuple, num_in_channels=3, kernel_sizes=3):
+               dropout_rate: float, avgpool_target_size=(1, 1), num_in_channels=3, kernel_sizes=3):
         """
         Constructor
         :param n_classes: Number of classes
@@ -289,12 +290,14 @@ class DenseNetConfig(ModelConfig):
         # head module
         head_block_args = get_head_block_args(n_classes=n_classes, num_feature_maps=num_feature_maps,
                                               buffer_reduction=None, avgpool_target_size=avgpool_target_size)
-        self.model_config.append(('avgfc_head_block', head_block_args))
+        self.model_config.append(('head_block', head_block_args))
         self.model_config = OrderedDict(self.model_config)
 
 
 class MobileNetConfig(ModelConfig):
-
+    """
+    TODO: DO NOT FORGET KEEP TRACK OF self.num_features_before_head
+    """
     def set_up(self, *args):
         pass
 
@@ -317,7 +320,7 @@ class Builder:
                 'residual_block': ResidualBlock,
                 'dense_block': DenseBlock,
                 'transition_block': TransitionBlock,
-                'avgfc_head_block': AvgPoolFCHead}
+                'head_block': AvgPoolFCHead}
 
         blocks = OrderedDict()
         config = config.get_model_config()
