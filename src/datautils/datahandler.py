@@ -6,13 +6,19 @@ Email: gjia0214@gmail.com | jxg570@miami.edu
 """
 
 import os
+import torch
+import numpy as np
+import random
 from PIL import Image
 from torchvision.transforms.transforms import *
 from torch.utils.data.dataloader import *
 from torch.utils.data.dataset import *
 
 
-def default_preprocessing(mean, std, size: tuple):
+def default_preprocessing(size: tuple,
+                          mean=(0.49139968, 0.48215841, 0.44653091),
+                          std=(0.24703223, 0.24348513, 0.26158784),
+                          ):
     """
     Get the default preprocessing pipeline
     ToPIL -> Resize -> ToTensor -> Normalization
@@ -22,7 +28,7 @@ def default_preprocessing(mean, std, size: tuple):
     return [Resize(size=size), ToTensor(), Normalize(mean=mean, std=std)]
 
 
-def default_augmentation(p):
+def default_augmentation(p=0.5):
     """
     Get the default augmentation.
     Random Horizontal Flip & RandomVerticalFlip & Random Jitter
@@ -34,8 +40,9 @@ def default_augmentation(p):
     # overall 0.5 x 1.0 + 0.5 x 0.25 = 0.625 chance of Not get flipped
     flip = RandomApply([RandomHorizontalFlip(p=0.5), RandomVerticalFlip(p=0.5)], p)
 
-    # 0.25 chance of get color jittered (disable the jitter on hue as it would require PIL input)
-    jitter = RandomApply([ColorJitter(brightness=0.25, contrast=0.25, saturation=0.25, hue=0)], p=0.25)
+    # p/5 chance of get color jittered (disable the jitter on hue as it would require PIL input)
+    # less probability for jitter in case it affect the model learning
+    jitter = RandomApply([ColorJitter(brightness=0.25, contrast=0.25, saturation=0.25, hue=0)], p/5)
 
     return [flip, jitter]
 
@@ -253,7 +260,8 @@ class DataHandler:
     Wrapper on the dataloaders
     """
 
-    def __init__(self, train_dataset: ImgDataset or None, eval_dataset: ImgDataset or None, batch_size):
+    def __init__(self, train_dataset: ImgDataset or None, eval_dataset: ImgDataset or None,
+                 batch_size: int):
         """
         Constructor
         :param train_dataset: training dataset
