@@ -15,10 +15,10 @@ from torch.utils.data.dataloader import *
 from torch.utils.data.dataset import *
 
 
-def default_preprocessing(size: tuple,
-                          mean=(0.49139968, 0.48215841, 0.44653091),
-                          std=(0.24703223, 0.24348513, 0.26158784),
-                          ):
+def default_test_processing(size: tuple,
+                            mean=(0.49139968, 0.48215841, 0.44653091),
+                            std=(0.24703223, 0.24348513, 0.26158784),
+                            ):
     """
     Get the default preprocessing pipeline
     ToPIL -> Resize -> ToTensor -> Normalization
@@ -28,10 +28,18 @@ def default_preprocessing(size: tuple,
     return [Resize(size=size), ToTensor(), Normalize(mean=mean, std=std)]
 
 
-def default_augmentation(p=0.5):
+def default_train_processing(size: tuple,
+                             crop_size=64, p=0.5,
+                             mean=(0.49139968, 0.48215841, 0.44653091),
+                             std=(0.24703223, 0.24348513, 0.26158784)):
     """
     Get the default augmentation.
     Random Horizontal Flip & RandomVerticalFlip & Random Jitter
+    :param size: resize size
+    :param crop_size: crop size for random crop
+    :param p: probability
+    :param mean: mean
+    :param std: std
     :return: list of augmentation techniques
     """
 
@@ -44,7 +52,10 @@ def default_augmentation(p=0.5):
     # less probability for jitter in case it affect the model learning
     jitter = RandomApply([ColorJitter(brightness=0.25, contrast=0.25, saturation=0.25, hue=0)], p/5)
 
-    return [flip, jitter]
+    # random crop
+    crop = RandomCrop(crop_size, padding=4)
+
+    return [flip, jitter, crop, Resize(size=size), ToTensor(), Normalize(mean=mean, std=std)]
 
 
 class DataPackerAbstract:
@@ -139,35 +150,26 @@ class ImgDataset(Dataset):
     Use .train() or .eval() to turn on or off the augmentation
     """
 
-    def __init__(self, data_packer: DataPackerAbstract, pre_pipeline: list or None, augmentations: list or None):
+    def __init__(self, data_packer: DataPackerAbstract, processing: list or None):
         """
         Constructor
         :param data_packer: A packed data object. The object class should inherit the PackedDataAbstract
-        :param pre_pipeline: pre-processing pipeline, apply to image for both training and testing time. Note that ToTensor is already included,
-        no need to pass it again.
-        :param augmentations: Data augmentations. If not None, pass a list of augmentation module. At training time, each image will be
-        augmented by the provided augmentation technique.
+        :param processing: processing pipeline can be augmentation or pure processing
         """
 
         # data
         self.packed_data = data_packer.get_packed_data()
-        self.state = 'train'
 
         # idx to img_id to make get_item work
         self.idx2id = {i: img_id for i, img_id in enumerate(self.packed_data['data'])}
 
         # processing func from torchvision
         self.mapping = {}
-        self.pre_processing = None
-        self.augmentations = None
+        self.processing = processing
 
-        # sanity check and put the callables object into pipeline / augmentations
-        if pre_pipeline is not None:
-            self.pre_processing = self.__sanity_check(pre_pipeline)
-            self.pre_processing = Compose(self.pre_processing)
-        if augmentations is not None:
-            self.augmentations = self.__sanity_check(augmentations)
-            self.augmentations = Compose(self.augmentations)
+        # sanity chek
+        if self.processing is not None:
+            self.__sanity_check(self.processing)
 
     def __getitem__(self, idx: int):
         """
@@ -191,21 +193,10 @@ class ImgDataset(Dataset):
         else:
             raise Exception('Mode must be either disk or memory but was {}'.format(mode))
 
-        # check type
-        if not isinstance(img, Image.Image):
+        # process the image
+        if self.processing is not None and not isinstance(img, Image.Image):
             img = ToPILImage()(img)
-
-        # apply augmentations
-        if self.state == 'train' and self.augmentations is not None:
-            img = self.augmentations(img)
-
-        # check type
-        if not isinstance(img, Image.Image):
-            img = ToPILImage()(img)
-
-        # apply preprocessing pipeline
-        if self.pre_processing is not None:
-            img = self.pre_processing(img)
+            img = self.processing(img)
 
         # check type
         if isinstance(img, Image.Image):
@@ -229,12 +220,6 @@ class ImgDataset(Dataset):
         """
 
         return len(self.idx2id)
-
-    def eval(self):
-        self.state = 'eval'
-
-    def train(self):
-        self.state = 'train'
 
     @staticmethod
     def __sanity_check(funcs: list):
@@ -271,10 +256,8 @@ class DataHandler:
 
         self.dataloaders = {'train': None, 'eval': None}
         if train_dataset is not None:
-            train_dataset.train()
             self.dataloaders['train'] = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
         if eval_dataset is not None:
-            eval_dataset.eval()
             self.dataloaders['eval'] = DataLoader(dataset=eval_dataset, batch_size=batch_size, shuffle=False)
 
     def __getitem__(self, phase: str):
