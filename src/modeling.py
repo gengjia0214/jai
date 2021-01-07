@@ -613,7 +613,7 @@ class Trainer(__BaseAgent):
                 print('+++')
             print("\n======End Epoch {}=======\n".format(epoch))
 
-            loss_ratio = loss_cache['train'] / loss_cache['eval']
+            loss_ratio = loss_cache['eval'] / loss_cache['train']
 
             # for last epoch
             if epoch == epochs - 1 or (allowed_loss_ratio is not None and loss_ratio > allowed_loss_ratio):
