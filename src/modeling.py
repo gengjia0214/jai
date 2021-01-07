@@ -490,12 +490,13 @@ class Trainer(__BaseAgent):
                          new_head=new_head, blocks_to_freeze=blocks_to_freeze)
         self.agent = 'trainer'
 
-    def train(self, datahandler: DataHandler, epochs, seed):
+    def train(self, datahandler: DataHandler, epochs, seed, allowed_loss_ratio: float or None):
         """
         Model training pipeline with loss & performance metrics logging & automatic checkpoint
         :param datahandler: data handler
         :param epochs: total number of training epochs
         :param seed: seed for random state
+        :param allowed_loss_ratio: set up a train/eval loss ratio threshold, when the loss ratio becomes larger than the threshold, stop the training
         :return:
         """
 
@@ -516,6 +517,9 @@ class Trainer(__BaseAgent):
         # placeholder
         epoch_recorder = {'train': {},
                           'eval': {}}
+
+        # loss cache
+        loss_cache = {'train': 1, 'eval': 1}
 
         # main loop
         for epoch in self.pbar[self.running_env](range(self.base_epoch, epochs), total=epochs - self.base_epoch, desc='Epochs'):
@@ -561,10 +565,12 @@ class Trainer(__BaseAgent):
                             self.optimizer.step()
 
                     # batch logging - ground truth, prediction, batch loss
+                    loss_cpu = loss.cpu().detach().tolist()
                     ground_truth = Y_mini_batch.cpu().detach().view(-1).tolist()
                     predictions = output_scores.cpu().detach().argmax(-1).view(-1).tolist()
                     self.logger.login_batch(phase=phase, ground_truth=ground_truth, predictions=predictions,
-                                            loss=loss.cpu().detach().tolist())
+                                            loss=loss_cpu)
+                    loss_cache[phase] = loss_cpu
 
                 if self.device != 'cpu':
                     memory_usage[phase] = torch.cuda.memory_allocated(device=self.device)
@@ -607,9 +613,14 @@ class Trainer(__BaseAgent):
                 print('+++')
             print("\n======End Epoch {}=======\n".format(epoch))
 
+            loss_ratio = loss_cache['train'] / loss_cache['eval']
+
             # for last epoch
-            if epoch == epochs - 1:
+            if epoch == epochs - 1 or (allowed_loss_ratio is not None and loss_ratio > allowed_loss_ratio):
                 self.save_checkpoint(epoch, last_epoch=True)
+            if allowed_loss_ratio is not None and loss_ratio > allowed_loss_ratio:
+                print('Loss ratio beyond the threshold, training stopped.')
+                break
 
     def save_checkpoint(self, epoch, last_epoch=False):
         """
