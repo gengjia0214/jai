@@ -15,8 +15,7 @@ from torch.utils.data.dataloader import *
 from torch.utils.data.dataset import *
 
 
-def default_test_processing(size: tuple,
-                            mean=(0.49139968, 0.48215841, 0.44653091),
+def default_test_processing(mean=(0.49139968, 0.48215841, 0.44653091),
                             std=(0.24703223, 0.24348513, 0.26158784),
                             ):
     """
@@ -25,17 +24,15 @@ def default_test_processing(size: tuple,
     :return: list of processing module
     """
 
-    return [Resize(size=size), ToTensor(), Normalize(mean=mean, std=std)]
+    return [ToTensor(), Normalize(mean=mean, std=std)]
 
 
-def default_train_processing(size: tuple,
-                             crop_size=64, p=0.5,
+def default_train_processing(crop_size=64, p=0.5,
                              mean=(0.49139968, 0.48215841, 0.44653091),
                              std=(0.24703223, 0.24348513, 0.26158784)):
     """
     Get the default augmentation.
     Random Horizontal Flip & RandomVerticalFlip & Random Jitter
-    :param size: resize size
     :param crop_size: crop size for random crop
     :param p: probability
     :param mean: mean
