@@ -55,7 +55,7 @@ def default_train_processing(size: tuple,
     # random crop
     crop = RandomCrop(crop_size, padding=4)
 
-    return [flip, jitter, crop, Resize(size=size), ToTensor(), Normalize(mean=mean, std=std)]
+    return [flip, jitter, crop, ToTensor(), Normalize(mean=mean, std=std)]
 
 
 class DataPackerAbstract:

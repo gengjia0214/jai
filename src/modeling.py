@@ -518,12 +518,12 @@ class Trainer(__BaseAgent):
         epoch_recorder = {'train': {},
                           'eval': {}}
 
-        # loss cache
-        loss_cache = {'train': 1, 'eval': 1}
-
         # main loop
         for epoch in self.pbar[self.running_env](range(self.base_epoch, epochs), total=epochs - self.base_epoch, desc='Epochs'):
             print("=====Start Epoch {}======\n".format(epoch))
+
+            # loss cache
+            loss_cache = {'train': 0, 'eval': 0}
 
             for phase in ['train', 'eval']:
 
@@ -570,7 +570,7 @@ class Trainer(__BaseAgent):
                     predictions = output_scores.cpu().detach().argmax(-1).view(-1).tolist()
                     self.logger.login_batch(phase=phase, ground_truth=ground_truth, predictions=predictions,
                                             loss=loss_cpu)
-                    loss_cache[phase] = loss_cpu
+                    loss_cache[phase] += loss_cpu
 
                 if self.device != 'cpu':
                     memory_usage[phase] = torch.cuda.memory_allocated(device=self.device)
