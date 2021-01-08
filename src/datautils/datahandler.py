@@ -67,7 +67,7 @@ class DataPackerAbstract:
     def __init__(self):
 
         self.mode = None  # mode
-
+        self.parent_dir = None
         # below should all be dict format {id: xxx, ...}
         self.data_src = None  # data src should contains id & image data or image fp
         self.labels = None  # labels
@@ -158,6 +158,7 @@ class ImgDataset(Dataset):
         """
 
         # data
+        self.parent_dir = data_packer.parent_dir
         self.packed_data = data_packer.get_packed_data()
 
         # idx to img_id to make get_item work
@@ -186,7 +187,7 @@ class ImgDataset(Dataset):
 
         # get he image
         if mode == 'disk':
-            fp = self.packed_data['data'][data_id]
+            fp = os.path.join(self.parent_dir, self.packed_data['data'][data_id])
             img = Image.open(fp=fp)
         elif mode == 'memory':
             img = self.packed_data['data'][data_id]
