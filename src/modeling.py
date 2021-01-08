@@ -1,5 +1,6 @@
 """
 Modeling Pipeline
+TODO: update and test the termination criteria, currently not working
 
 Author: Jia Geng
 Email: gjia0214@gmail.com | jxg570@miami.edu
