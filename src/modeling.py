@@ -1,6 +1,5 @@
 """
 Modeling Pipeline
-TODO: update and test the termination criteria, currently not working
 
 Author: Jia Geng
 Email: gjia0214@gmail.com | jxg570@miami.edu
@@ -491,13 +490,12 @@ class Trainer(__BaseAgent):
                          new_head=new_head, blocks_to_freeze=blocks_to_freeze)
         self.agent = 'trainer'
 
-    def train(self, datahandler: DataHandler, epochs, seed, allowed_loss_ratio: float or None):
+    def train(self, datahandler: DataHandler, epochs, seed):
         """
         Model training pipeline with loss & performance metrics logging & automatic checkpoint
         :param datahandler: data handler
         :param epochs: total number of training epochs
         :param seed: seed for random state
-        :param allowed_loss_ratio: set up a train/eval loss ratio threshold, when the loss ratio becomes larger than the threshold, stop the training
         :return:
         """
 
@@ -522,9 +520,6 @@ class Trainer(__BaseAgent):
         # main loop
         for epoch in self.pbar[self.running_env](range(self.base_epoch, epochs), total=epochs - self.base_epoch, desc='Epochs'):
             print("=====Start Epoch {}======\n".format(epoch))
-
-            # loss cache
-            loss_cache = {'train': 0, 'eval': 0}
 
             for phase in ['train', 'eval']:
 
@@ -571,7 +566,6 @@ class Trainer(__BaseAgent):
                     predictions = output_scores.cpu().detach().argmax(-1).view(-1).tolist()
                     self.logger.login_batch(phase=phase, ground_truth=ground_truth, predictions=predictions,
                                             loss=loss_cpu)
-                    loss_cache[phase] += loss_cpu
 
                 if self.device != 'cpu':
                     memory_usage[phase] = torch.cuda.memory_allocated(device=self.device)
@@ -614,14 +608,9 @@ class Trainer(__BaseAgent):
                 print('+++')
             print("\n======End Epoch {}=======\n".format(epoch))
 
-            loss_ratio = loss_cache['eval'] / loss_cache['train']
-
             # for last epoch
-            if epoch == epochs - 1 or (allowed_loss_ratio is not None and loss_ratio > allowed_loss_ratio):
+            if epoch == epochs - 1:
                 self.save_checkpoint(epoch, last_epoch=True)
-            if allowed_loss_ratio is not None and loss_ratio > allowed_loss_ratio:
-                print('Loss ratio beyond the threshold, training stopped.')
-                break
 
     def save_checkpoint(self, epoch, last_epoch=False):
         """
