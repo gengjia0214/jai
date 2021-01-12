@@ -112,6 +112,7 @@ class _Logger:
         """
 
         # performance metrics
+        batch_acc = []
         for t, p in zip(ground_truth, predictions):
             # update the list container
             self.temp_ground_truth[phase].append(t)
@@ -126,7 +127,7 @@ class _Logger:
             self.temp_batch_loss[phase].append(loss)
             self.batch_loss[phase].append(loss)
 
-    def login_iteration(self, phase: str, criteria: str, epoch: int):
+    def login_epoch(self, phase: str, criteria: str, epoch: int):
         """
         Operations when an iteration complete
         For training phase:
@@ -577,7 +578,7 @@ class Trainer(__BaseAgent):
                 del Y_mini_batch
 
                 # ITERATION END - login the compute the performance metrics
-                epoch_loss, acc, selected_metric, find_better_model = self.logger.login_iteration(phase=phase, criteria=self.criteria, epoch=epoch)
+                epoch_loss, acc, selected_metric, find_better_model = self.logger.login_epoch(phase=phase, criteria=self.criteria, epoch=epoch)
                 epoch_recorder[phase]['loss'] = np.round(epoch_loss, 4)
                 epoch_recorder[phase]['acc'] = np.round(acc, 4)
                 epoch_recorder[phase]['perf'] = np.round(selected_metric, 4)
@@ -706,7 +707,7 @@ class Evaluator(__BaseAgent):
                                     loss=None)
 
         # ITERATION END - login the compute the performance metrics
-        self.logger.login_iteration(phase='eval', criteria=self.criteria, epoch=0)
+        self.logger.login_epoch(phase='eval', criteria=self.criteria, epoch=0)
         self.report_evaluation_results()
 
         # output

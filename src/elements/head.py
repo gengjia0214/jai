@@ -7,13 +7,11 @@ Email: gjia0214@gmail.com | jxg570@miami.edu
 """
 
 import torch.nn as nn
-import torch
 
 
 class AvgPoolFCHead(nn.Module):
     """
     Average Pooling + Dense Layers
-    avgpool - fc1 - relu - fc2 - scores
     """
 
     def __init__(self, n_classes: int, in_channels: int, buffer_reduction: int or None, avgpool_target_shape: tuple or int):
