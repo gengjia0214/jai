@@ -362,7 +362,7 @@ class __BaseAgent:
             if self.new_head is not None:
 
                 # sanity check, the model must have the head_block
-                error_msg = 'Model does not have the head_block. Head replacement only supports the models created by the Builder class'
+                error_msg = 'Model does not have the head_block. Head replacement only supports the mech created by the Builder class'
                 assert 'head_block' in [name[0] for name in self.model.named_modules()], error_msg
 
                 # set it to the new head

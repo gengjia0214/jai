@@ -1,5 +1,5 @@
 """
-Baseline models
+Baseline mech
 
 Author: Jia Geng
 Email: gjia0214@gmail.com | jxg570@miami.edu

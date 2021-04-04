@@ -1,5 +1,5 @@
 """
-Building blocks for the ConvNet models
+Building blocks for the ConvNet mech
 
 Author: Jia Geng
 Email: gjia0214@gmail.com | jxg570@miami.edu
@@ -367,4 +367,5 @@ class InvertedResidualBlock(nn.Module):
     """
     TODO: implement the mobilenet base block
     """
+    
     pass

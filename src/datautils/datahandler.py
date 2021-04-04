@@ -64,7 +64,7 @@ class DataPackerAbstract:
     def __init__(self):
 
         self.mode = None  # mode
-        self.parent_dir = None
+        self.patch_dir = None
         # below should all be dict format {id: xxx, ...}
         self.data_src = None  # data src should contains id & image data or image fp
         self.labels = None  # labels
@@ -155,7 +155,7 @@ class ImgDataset(Dataset):
         """
 
         # data
-        self.parent_dir = data_packer.parent_dir
+        self.parent_dir = data_packer.patch_dir
         self.packed_data = data_packer.get_packed_data()
 
         # idx to img_id to make get_item work
@@ -194,7 +194,8 @@ class ImgDataset(Dataset):
         # process the image
         if self.processing is not None and not isinstance(img, Image.Image):
             img = ToPILImage()(img)
-            img = self.processing(img)
+            for f in self.processing:
+                img = f(img)
 
         # check type
         if isinstance(img, Image.Image):
@@ -208,6 +209,98 @@ class ImgDataset(Dataset):
         # get the additional annotations, if any
         if 'info' in self.packed_data:
             output['info'] = self.packed_data['info'][data_id]
+
+        return output
+
+    def __len__(self):
+        """
+        Get the length of the data
+        :return: length of the data
+        """
+
+        return len(self.idx2id)
+
+    @staticmethod
+    def __sanity_check(funcs: list):
+        """
+        Sanity check on each input function module.
+        Put the callable object into pipeline
+        :param funcs:
+        :return:
+        """
+
+        callables = []
+        for func in funcs:
+            # sanity check
+            assert callable(func), 'Function {} is not an callable object.'.format(func)
+            # collect
+            callables.append(func)
+
+        return callables
+
+
+class ImgSequenceDataset(Dataset):
+    """
+    PyTorch Dataset + image processing & augmentation
+    For image processing pipeline & augmentation, ImageDataset will be compatible with the torchvision.transforms.
+    Pass a list of transform modules and ImgDataset will Compose it.
+    Only support on disk loading
+    """
+
+    def __init__(self, data_packer: DataPackerAbstract, processing: list or None):
+        """
+        Constructor
+        :param data_packer: A packed data object. The object class should inherit the PackedDataAbstract
+        :param processing: processing pipeline can be augmentation or pure processing
+        """
+
+        # data
+        self.patch_dir = data_packer.patch_dir
+        self.packed_data = data_packer.get_packed_data()
+
+        # idx to img_id to make get_item work
+        self.idx2id = {i: img_id for i, img_id in enumerate(self.packed_data['data'])}
+
+        # processing func from torchvision
+        self.processing = processing
+
+        # sanity chek
+        if self.processing is not None:
+            self.__sanity_check(self.processing)
+
+    def __getitem__(self, idx: int):
+        """
+        Get item method
+        :param idx: the data idx
+        :return: data and annotations
+        """
+
+        # get the image id
+        sequence_id = self.idx2id[idx]
+
+        # read patches in the sequence
+        fps = self.packed_data['data'][sequence_id]
+        sequence = []
+        for fp in fps:
+            # load the image
+            patch = Image.open(fp=fp)
+            if self.processing is not None:
+                for f in self.processing:
+                    patch = f(patch)
+            if isinstance(patch, Image.Image):
+                patch = ToTensor()(patch)
+            sequence.append(patch)
+
+        sequence = torch.stack(sequence, dim=0)  # (T, C, H, W)
+
+        # get the labels
+        label = int(self.packed_data['labels'][sequence_id])
+
+        output = {'x': sequence, 'y': label}
+
+        # get the additional annotations, if any
+        if 'info' in self.packed_data:
+            output['info'] = self.packed_data['info'][sequence_id]
 
         return output
 
