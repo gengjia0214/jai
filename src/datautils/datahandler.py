@@ -64,7 +64,8 @@ class DataPackerAbstract:
     def __init__(self):
 
         self.mode = None  # mode
-        self.patch_dir = None
+        self.parent_dir = None  # this is for patch packer
+        self.patch_dir = None   # this is for sequence packer only
         # below should all be dict format {id: xxx, ...}
         self.data_src = None  # data src should contains id & image data or image fp
         self.labels = None  # labels
@@ -155,7 +156,7 @@ class ImgDataset(Dataset):
         """
 
         # data
-        self.parent_dir = data_packer.patch_dir
+        self.parent_dir = data_packer.parent_dir
         self.packed_data = data_packer.get_packed_data()
 
         # idx to img_id to make get_item work
@@ -278,7 +279,7 @@ class ImgSequenceDataset(Dataset):
         # get the image id
         sequence_id = self.idx2id[idx]
 
-        # read patches in the sequence
+        # read patches in the sequence TODO: check the IO
         fps = self.packed_data['data'][sequence_id]
         sequence = []
         for fp in fps:
