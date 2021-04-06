@@ -81,7 +81,7 @@ class _Logger:
         # batch & epoch log
         self.batch_loss = {'train': [], 'eval': []}
         self.epoch_loss = {'train': [], 'eval': []}
-        self.epoch_perf = {'train': [], 'eval': []}
+        self.epoch_perf = {'train': [], 'eval': []}  # for storing the acc of each epoch
 
         # best epoch log
         # unlock and refresh when meet better epoch
@@ -157,6 +157,7 @@ class _Logger:
         perf_metrics = compute_metric(ground_truth=self.temp_ground_truth[phase], prediction=self.temp_prediction[phase])
         acc = perf_metrics['accuracy']
         selected_metric = perf_metrics[criteria]['macro'] if criteria != 'accuracy' else acc
+        self.epoch_perf[phase].append(acc)
 
         # for eval phase => reset temp pointer & check whether get better performance
         if phase == 'eval':
@@ -303,6 +304,7 @@ class __BaseAgent:
         self.base_epoch = 0
         self.checkpoint_folder = checkpoint_folder
         self.prefix = prefix
+        self.manual_load_model_param = False   # arg reserved for evaluator
 
         # set up args for transfer learning
         # when new_head_args is not None, transfer learning is activated
@@ -332,53 +334,60 @@ class __BaseAgent:
 
         if device == 'cpu':
             torch.set_num_threads(n_threads)
-
-        # move model to device before initialize the optimizers and scheduler
-        self.model = self.model.to(device)
-        self.loss_module = self.loss_module.to(device)
         self.device = device
+        
+        # move model to device before initialize the optimizers and scheduler
+        if self.agent == 'trainer':
+            self.model = self.model.to(device)
+            self.loss_module = self.loss_module.to(device)
 
-        # initialize the optimizer and scheduler
-        if self.optimizer is not None:
-            self.optimizer = self.optimizer(self.model.parameters())
+            # initialize the optimizer and scheduler
+            if self.optimizer is not None:
+                self.optimizer = self.optimizer(self.model.parameters())
 
-        # use scheduler
-        if self.scheduler is not None:
-            self.scheduler = self.scheduler(optimizer=self.optimizer)
+            # use scheduler
+            if self.scheduler is not None:
+                self.scheduler = self.scheduler(optimizer=self.optimizer)
 
-        # load the pretrained param if provided
-        if pretrained_param_path is not None:
-            # sanity check
-            error_msg = 'pretrained_param_path must end with .pth'
-            assert isinstance(pretrained_param_path, str) and pretrained_param_path.endswith('pth'), error_msg
-            meta_state = torch.load(f=pretrained_param_path, map_location='cpu')
+            # load the pretrained param if provided
+            if pretrained_param_path is not None:
+                # sanity check
+                error_msg = 'pretrained_param_path must end with .pth'
+                assert isinstance(pretrained_param_path, str) and pretrained_param_path.endswith('pth'), error_msg
+                meta_state = torch.load(f=pretrained_param_path, map_location='cpu')
 
-            # load the model state
-            # compatible with pure model state or the logger output
-            model_state = meta_state['model_state'] if 'model_state' in meta_state else meta_state
-            self.model.load_state_dict(model_state)
+                # load the model state
+                # compatible with pure model state or the logger output
+                model_state = meta_state['model_state'] if 'model_state' in meta_state else meta_state
+                self.model.load_state_dict(model_state)
 
-            # replace the old head with new head
-            if self.new_head is not None:
+                # replace the old head with new head
+                if self.new_head is not None:
 
-                # sanity check, the model must have the head_block
-                error_msg = 'Model does not have the head_block. Head replacement only supports the mech created by the Builder class'
-                assert 'head_block' in [name[0] for name in self.model.named_modules()], error_msg
+                    # sanity check, the model must have the head_block
+                    error_msg = 'Model does not have the head_block. Head replacement only supports the mech created by the Builder class'
+                    assert 'head_block' in [name[0] for name in self.model.named_modules()], error_msg
 
-                # set it to the new head
-                new_head = AvgPoolFCHead(**self.new_head) if isinstance(self.new_head, dict) else self.new_head
-                new_head = new_head.to(self.device)
-                self.model.head_block = new_head
-                print('Head module has been replaced.')
+                    # set it to the new head
+                    new_head = AvgPoolFCHead(**self.new_head) if isinstance(self.new_head, dict) else self.new_head
+                    new_head = new_head.to(self.device)
+                    self.model.head_block = new_head
+                    print('Head module has been replaced.')
 
-            # turn on/off the requires_grads
-            for (param_name, param) in self.model.named_parameters():
-                requires_grad = True
-                for frozen_block in self.blocks_to_freeze:
-                    if param_name.startswith(frozen_block):  # decide which block to freeze based on the prefix
-                        requires_grad = False
-                        print("Param {} requires_grad was turned off".format(param_name))
-                param.requires_grad = requires_grad
+                # turn on/off the requires_grads
+                for (param_name, param) in self.model.named_parameters():
+                    requires_grad = True
+                    for frozen_block in self.blocks_to_freeze:
+                        if param_name.startswith(frozen_block):  # decide which block to freeze based on the prefix
+                            requires_grad = False
+                            print("Param {} requires_grad was turned off".format(param_name))
+                    param.requires_grad = requires_grad
+
+        elif self.agent == 'evaluator':
+            # load the model
+            if not self.manual_load_model_param:
+                self.load_checkpoint()
+                self.model = self.model.to(device)
 
     def load_model_params(self, model_state_dict: dict):
         """
@@ -656,7 +665,7 @@ class Evaluator(__BaseAgent):
     def __init__(self, model: nn.Module,
                  n_classes: int, criteria: str,
                  prefix: str, checkpoint_folder: str,
-                 verbose=False):
+                 verbose=False, manual_load_model_param=False):
         """
         Constructor
         :param model: model architecture
@@ -665,6 +674,7 @@ class Evaluator(__BaseAgent):
         :param prefix: checkpoint naming prefix
         :param checkpoint_folder: checkpoint directory
         :param verbose: whether to print out additional message for debugging
+        :param manual_load_model_param: whether to manually load model param
         """
 
         super().__init__(model=model, loss_module=None,
@@ -672,19 +682,15 @@ class Evaluator(__BaseAgent):
                          optimizer=None, scheduler=None,
                          prefix=prefix, checkpoint_folder=checkpoint_folder)
         self.agent = 'evaluator'
+        self.manual_load_model_param = manual_load_model_param
 
-    def evaluate(self, datahandler: DataHandler, manual_load_model_param=False):
+    def evaluate(self, datahandler: DataHandler):
         """
         Evaluation on the data.
         The evaluation pipeline will compute auc, acc, roc curve and optionally feature rank.
         :param datahandler: data handler, data should be loaded on the eval key
-        :param manual_load_model_param: whether the model param was manually loaded, if not, will load it from the check point folder
         :return: acc, auc, roc curve, auc_by_seq_len, feature_ranker object (if fit_ranker=True)
         """
-
-        # load the model
-        if not manual_load_model_param:
-            self.load_checkpoint()
 
         # main loop
         for i, mini_batch in self.pbar[self.running_env](enumerate(datahandler['eval']), total=len(datahandler['eval']), desc='Evaluation'):

@@ -10,6 +10,7 @@ import torch
 import numpy as np
 import random
 from PIL import Image
+from collections import OrderedDict
 from torchvision.transforms.transforms import *
 from torch.utils.data.dataloader import *
 from torch.utils.data.dataset import *
@@ -102,11 +103,12 @@ class DataPackerAbstract:
         """
 
         # sanity check
-        assert isinstance(self.data_src, dict), 'Data source should be a dictionary with key: id'
-        assert isinstance(self.labels, dict), 'Labels should be a dictionary with key: id'
-        if self.additional_info is not None: assert isinstance(self.labels, dict), 'Annotation should be a dictionary with key: id'
+        assert (isinstance(self.data_src, dict) or isinstance(self.data_src, OrderedDict)), 'Data source should be a dictionary with key: id'
+        assert (isinstance(self.labels, dict) or isinstance(self.labels, OrderedDict)), 'Labels should be a dictionary with key: id'
+        if self.additional_info is not None:
+            assert (isinstance(self.additional_info, dict) or isinstance(self.additional_info, OrderedDict)), 'Annotation should be a dictionary ' \
+                                                                                                              'with key: id'
         assert self.mode in ['disk', 'memory'], 'model must be either disk or memory'
-
         for data_id in self.data_src:
             if self.additional_info is not None and data_id not in self.additional_info:
                 raise Exception('Data id={} from data src can not be found in annotation.'.format(data_id))
