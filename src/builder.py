@@ -12,7 +12,9 @@ from elements.blocks import *
 from elements.head import *
 
 
-def get_init_block_args(init_num_feature_maps, init_conv_stride, init_kernel_size, init_maxpool_stride, init_maxpool_size, num_in_channels):
+def get_init_block_args(init_num_feature_maps, init_conv_stride, init_kernel_size,
+                        init_maxpool_stride, init_maxpool_size, num_in_channels,
+                        separable_convolution=False):
     """
     Wrap the args for init block into a dict.
     Check Config classes for arg doc string
@@ -21,7 +23,8 @@ def get_init_block_args(init_num_feature_maps, init_conv_stride, init_kernel_siz
 
     # prepare the args for the initial block
     init_block_args = {'num_out_channels': init_num_feature_maps, 'conv_stride': init_conv_stride, 'conv_ksize': init_kernel_size,
-                       'pool_stride': init_maxpool_stride, 'pool_ksize': init_maxpool_size, 'num_in_channels': num_in_channels}
+                       'pool_stride': init_maxpool_stride, 'pool_ksize': init_maxpool_size, 'num_in_channels': num_in_channels,
+                       'separable_convolution': separable_convolution}
 
     return init_block_args
 
@@ -214,7 +217,7 @@ class DenseNetConfig(ModelConfig):
                init_num_feature_maps: int, init_conv_stride: int, init_kernel_size: int, init_maxpool_stride: int, init_maxpool_size: int,
                num_blocks: int, num_dense_unit_per_block: int or list, growth_rates: int or list, base_bottleneck_sizes: int or list,
                transition_space_reductions: int or list, transition_feature_reductions: int or list,
-               dropout_rate: float, avgpool_target_size=(1, 1), num_in_channels=3, kernel_sizes=3):
+               dropout_rate: float, avgpool_target_size=(1, 1), num_in_channels=3, kernel_sizes=3, separable_convolution=False):
         """
         Constructor
         :param n_classes: Number of classes
@@ -237,6 +240,7 @@ class DenseNetConfig(ModelConfig):
         :param avgpool_target_size: Average pooling layer target size. Common value is 1, 2, 4
         :param num_in_channels: Number of input channels, default is 3 for RGB, for gray-scale need to set to 1
         :param kernel_sizes: kernel size, default is 3
+        :param separable_convolution: whether use depth-wise separable convolution
         """
 
         # sanity check
@@ -250,7 +254,8 @@ class DenseNetConfig(ModelConfig):
         # prepare the args for the initial block
         init_block = get_init_block_args(init_num_feature_maps=init_num_feature_maps, init_conv_stride=init_conv_stride,
                                          init_kernel_size=init_kernel_size, init_maxpool_stride=init_maxpool_stride,
-                                         init_maxpool_size=init_maxpool_size, num_in_channels=num_in_channels)
+                                         init_maxpool_size=init_maxpool_size, num_in_channels=num_in_channels,
+                                         separable_convolution=separable_convolution)
         self.model_config = [('init_block', init_block)]
 
         # keep track of num_feature_maps
@@ -268,7 +273,8 @@ class DenseNetConfig(ModelConfig):
             # prepare the residual block params
             dense_block_args = {'num_units': num_unit, 'num_in_channels': num_feature_maps,
                                 'base_bottleneck_size': base_bottleneck_size, 'growth_rate': growth_rate,
-                                'ksize': kernel_size, 'dropout_rate': dropout_rate}
+                                'ksize': kernel_size, 'dropout_rate': dropout_rate,
+                                'separable_convolution': separable_convolution}
 
             # collect the args for dense block
             self.model_config.append(('dense_block_{}'.format(i + 1), dense_block_args))

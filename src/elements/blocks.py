@@ -10,7 +10,7 @@ import torch.nn as nn
 from torch import Tensor
 
 
-def conv2d(num_in_channels: int, num_out_channels: int, ksize: int, stride: int, bias: bool, padding='maintain'):
+def conv2d(num_in_channels: int, num_out_channels: int, ksize: int, stride: int, bias: bool, padding='maintain', separable_convolution=False):
     """
     2D Conv layer
     Input: (H, W, C_in)
@@ -26,6 +26,7 @@ def conv2d(num_in_channels: int, num_out_channels: int, ksize: int, stride: int,
     :param stride: stride for the convolution operations
     :param bias: whether to use bias
     :param padding: padding for the conv layer, default is ksize//2 to maintain the output
+    :param separable_convolution: whether to use the depth-wise separable covolution
     :return: 2D conv layer
     """
 
@@ -34,11 +35,18 @@ def conv2d(num_in_channels: int, num_out_channels: int, ksize: int, stride: int,
     else:
         assert isinstance(padding, int), 'padding must be either maintain or a integer'
 
-    return nn.Conv2d(in_channels=num_in_channels, out_channels=num_out_channels,
-                     kernel_size=ksize, stride=stride, padding=padding, bias=bias)
+    if not separable_convolution:
+        conv = nn.Conv2d(in_channels=num_in_channels, out_channels=num_out_channels,
+                         kernel_size=ksize, stride=stride, padding=padding, bias=bias)
+    else:
+        conv = DepthwiseSeparableConv(in_channels=num_in_channels, out_channels=num_out_channels,
+                                      kernel_size=ksize, stride=stride, bias=bias)
+
+    return conv
 
 
-def conv_relu_bn(num_in_channels: int, num_out_channels: int, ksize: int, stride: int, bias: bool):
+def conv_relu_bn(num_in_channels: int, num_out_channels: int, ksize: int, stride: int, bias: bool,
+                 separable_convolution=False):
     """
     conv-relu-bn unit
     :param num_in_channels: number of input channels
@@ -46,14 +54,42 @@ def conv_relu_bn(num_in_channels: int, num_out_channels: int, ksize: int, stride
     :param ksize: kernel size
     :param stride: stride
     :param bias: whether to use bias
+    :param separable_convolution: whether to use separable_convolution
     :return: conv-relu-bn unit
     """
 
-    conv = conv2d(num_in_channels=num_in_channels, num_out_channels=num_out_channels, ksize=ksize, stride=stride, bias=bias)
+    conv = conv2d(num_in_channels=num_in_channels, num_out_channels=num_out_channels,
+                  ksize=ksize, stride=stride, bias=bias,
+                  separable_convolution=separable_convolution)
     bn = nn.BatchNorm2d(num_out_channels)
     relu = nn.ReLU(inplace=True)
 
     return nn.Sequential(conv, bn, relu)
+
+
+class DepthwiseSeparableConv(nn.Module):
+    """
+    Depth-wise separable convolution from MobileNet
+    """
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int, stride: int, bias: bool):
+        """
+        :param in_channels: number of input channels
+        :param out_channels: number of output channels
+        :param kernel_size: kernel size
+        :param stride: stride
+        :param bias: whether to use bias
+        """
+
+        super().__init__()
+        self.depthwise = nn.Conv2d(in_channels, in_channels, kernel_size=kernel_size,
+                                   padding=kernel_size // 2, groups=in_channels, stride=stride, bias=bias)
+        self.pointwise = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, bias=bias)
+
+    def forward(self, x):
+        out = self.depthwise(x)
+        out = self.pointwise(out)
+
+        return out
 
 
 class InitConvBlock(nn.Module):
@@ -63,7 +99,7 @@ class InitConvBlock(nn.Module):
 
     def __init__(self, num_out_channels: int, conv_stride: int, conv_ksize: int,
                  pool_stride: int, pool_ksize: int,
-                 num_in_channels=3):
+                 num_in_channels=3, separable_convolution=False):
         """
         Constructor
         :param num_out_channels: number of output channels
@@ -72,13 +108,15 @@ class InitConvBlock(nn.Module):
         :param pool_stride: stride for the maxpool layer
         :param pool_ksize: kernel size for the maxpool layer
         :param num_in_channels: number of input channel, default is 3
+        :param separable_convolution: whether to use separable_convolution
         """
 
         super().__init__()
 
         # build layers
         self.init_convrelubn = conv_relu_bn(num_in_channels=num_in_channels, num_out_channels=num_out_channels,
-                                            stride=conv_stride, ksize=conv_ksize, bias=False)
+                                            stride=conv_stride, ksize=conv_ksize, bias=False,
+                                            separable_convolution=separable_convolution)
         self.maxpool = nn.MaxPool2d(kernel_size=pool_ksize, stride=pool_stride, padding=pool_ksize // 2)
 
     def forward(self, x: Tensor):
@@ -253,7 +291,8 @@ class DenseBlock(nn.Module):
     """
 
     def __init__(self, num_units: int, num_in_channels: int, growth_rate: int,
-                 base_bottleneck_size: int, ksize: int, dropout_rate: float):
+                 base_bottleneck_size: int, ksize: int, dropout_rate: float,
+                 separable_convolution=False):
         """
         :param num_units: number of dense layers
         :param num_in_channels: number of input channel
@@ -261,6 +300,7 @@ class DenseBlock(nn.Module):
         :param base_bottleneck_size: multiplicative factor for number of bottle neck layers (i.e. bn_size * k features in the bottleneck layer)
         :param ksize: kernel size
         :param dropout_rate: dropout rate after each dense layer
+        :param separable_convolution: whether to use separable convolution
         """
         super().__init__()
 
@@ -274,7 +314,7 @@ class DenseBlock(nn.Module):
             # num_in_channels + i * growth_rate
             layer = _DenseUnit(num_in_channels=num_in_channels + i * growth_rate,
                                growth_rate=growth_rate, base_bottleneck_size=base_bottleneck_size,
-                               ksize=ksize, drop_rate=dropout_rate)
+                               ksize=ksize, drop_rate=dropout_rate, separable_convolution=separable_convolution)
 
             self.add_module(name=name, module=layer)
 
@@ -306,13 +346,15 @@ class _DenseUnit(nn.Module):
     - Name growth rate because each layer's output will be concat to the input of following layers.
     """
 
-    def __init__(self, num_in_channels: int, growth_rate: int, base_bottleneck_size: int, ksize: int, drop_rate: float):
+    def __init__(self, num_in_channels: int, growth_rate: int, base_bottleneck_size: int, ksize: int, drop_rate: float,
+                 separable_convolution=False):
         """
         :param num_in_channels: number of input channel
         :param growth_rate: how many filters to add each layer (`k` in paper)
         :param base_bottleneck_size: multiplicative factor that decides the intermediate num. of feature maps (= base_bottleneck_size * k)
         :param ksize: kernel size
         :param drop_rate: dropout rate after each dense layer
+        :param separable_convolution: whether to use separable_convolution
         """
 
         super().__init__()
@@ -321,7 +363,7 @@ class _DenseUnit(nn.Module):
         self.bottleneck = conv_relu_bn(num_in_channels=num_in_channels, num_out_channels=base_bottleneck_size * growth_rate,
                                        ksize=1, stride=1, bias=False)
         self.convrelubn = conv_relu_bn(num_in_channels=base_bottleneck_size * growth_rate, num_out_channels=growth_rate,
-                                       ksize=ksize, stride=1, bias=False)
+                                       ksize=ksize, stride=1, bias=False, separable_convolution=separable_convolution)
         self.dropout = nn.Dropout(p=drop_rate)
 
     def forward(self, x: Tensor):
