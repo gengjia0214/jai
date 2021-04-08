@@ -147,7 +147,7 @@ class ResNetConfig(ModelConfig):
     def set_up(self, n_classes: int,
                init_num_feature_maps: int, init_conv_stride: int, init_kernel_size: int, init_maxpool_stride: int, init_maxpool_size: int,
                num_res_blocks: int, num_res_unit_per_block: int or list, bb_feature_expansion: int or list, bb_space_reduction: int or list,
-               avgpool_target_size=1, num_in_channels=3):
+               avgpool_target_size=1, num_in_channels=3, separable_convolution=False):
         """
         Constructor.
         :param n_classes: number of classes to be predicted
@@ -164,6 +164,7 @@ class ResNetConfig(ModelConfig):
         for each block, pass a list of int.
         :param avgpool_target_size: Average pooling layer output size.
         :param num_in_channels: Number of input channels, default is 3 for RGB, for gray-scale need to set to 1
+        :param separable_convolution: whether to use separable_convolution
         """
 
         # sanity check
@@ -174,7 +175,8 @@ class ResNetConfig(ModelConfig):
         # prepare the args for the initial block
         init_block = get_init_block_args(init_num_feature_maps=init_num_feature_maps, init_conv_stride=init_conv_stride,
                                          init_kernel_size=init_kernel_size, init_maxpool_stride=init_maxpool_stride,
-                                         init_maxpool_size=init_maxpool_size, num_in_channels=num_in_channels)
+                                         init_maxpool_size=init_maxpool_size, num_in_channels=num_in_channels,
+                                         separable_convolution=separable_convolution)
         self.model_config = [('init_block', init_block)]
 
         # keep track of num_feature_maps
@@ -190,7 +192,8 @@ class ResNetConfig(ModelConfig):
 
             # prepare the residual block params
             res_block_args = {'num_units': num_unit, 'num_in_channels': num_feature_maps,
-                              'space_reduction_ratio': stride, 'feature_expand_ratio': expand_ratio, 'ksize': 3}
+                              'space_reduction_ratio': stride, 'feature_expand_ratio': expand_ratio, 'ksize': 3,
+                              'separable_convolution': separable_convolution}
 
             # collect the args
             self.model_config.append(('residual_block_{}'.format(i+1), res_block_args))

@@ -138,7 +138,8 @@ class ResidualBlock(nn.Module):
     Output: (H // init_conv_stride, W // init_conv_stride, C_in * feature_expand_ratio )
     """
 
-    def __init__(self, num_units: int, num_in_channels: int, ksize, space_reduction_ratio=2, feature_expand_ratio=2, num_layer_per_unit=2):
+    def __init__(self, num_units: int, num_in_channels: int, ksize, space_reduction_ratio=2, feature_expand_ratio=2, num_layer_per_unit=2,
+                 separable_convolution=False):
         """
         Constructor
         :param num_units: number of residual units, each residual unit contains two (or more) conv-relu-bn layers and a shortcut connection
@@ -147,6 +148,7 @@ class ResidualBlock(nn.Module):
         :param space_reduction_ratio: stride for the first conv-relu-bn unit in the first res layer, default is 2
         :param feature_expand_ratio: feature expand ratio for the first conv-relu-bn unit in the first res layer, default is 2
         :param num_layer_per_unit: number of conv-relu-bn layer in each res unit, default is 2
+        :param separable_convolution: whether to use separable_convolution
         """
         super().__init__()
 
@@ -159,11 +161,13 @@ class ResidualBlock(nn.Module):
             if i == 0:
                 # For the first conv-relu-bn unit in the first res layer, downsample the space and increase the feature map
                 res_layer = _ResidualUnit(num_in_channels=num_in_channels, init_conv_stride=space_reduction_ratio,
-                                          feature_expand_ratio=feature_expand_ratio, ksize=ksize, num_layers=num_layer_per_unit)
+                                          feature_expand_ratio=feature_expand_ratio, ksize=ksize, num_layers=num_layer_per_unit,
+                                          separable_convolution=separable_convolution)
             else:
                 # No change on num. of feature maps or space
                 res_layer = _ResidualUnit(num_in_channels=n_features, init_conv_stride=1,
-                                          feature_expand_ratio=1, ksize=ksize, num_layers=num_layer_per_unit)
+                                          feature_expand_ratio=1, ksize=ksize, num_layers=num_layer_per_unit,
+                                          separable_convolution=separable_convolution)
 
             # pytorch overwrote the __setattr__ method
             self.add_module(name=name, module=res_layer)
@@ -191,7 +195,8 @@ class _ResidualUnit(nn.Module):
     Output: (H // S, W // S, C*expand_ratio)
     """
 
-    def __init__(self, num_in_channels: int, init_conv_stride: int, feature_expand_ratio: int, ksize: int, num_layers=2):
+    def __init__(self, num_in_channels: int, init_conv_stride: int, feature_expand_ratio: int, ksize: int, num_layers=2,
+                 separable_convolution=False):
         """
         Constructor
         :param num_in_channels: number of input channels
@@ -199,6 +204,7 @@ class _ResidualUnit(nn.Module):
         :param feature_expand_ratio: feature expansion ratio, affect C
         :param ksize: kernel size K
         :param num_layers: number of conv-relu-bn units, default is 2
+        :param separable_convolution: whether to use separable_convolution
         """
 
         super().__init__()
@@ -213,10 +219,12 @@ class _ResidualUnit(nn.Module):
         for i in range(num_layers):
             if i == 0:  # only the first layer will apply the reduction in space and/or expansion in features
                 layer = conv_relu_bn(num_in_channels=num_in_channels, num_out_channels=n_features,
-                                     stride=init_conv_stride, ksize=ksize, bias=False)
+                                     stride=init_conv_stride, ksize=ksize, bias=False,
+                                     separable_convolution=separable_convolution)
             else:
                 layer = conv_relu_bn(num_in_channels=n_features, num_out_channels=n_features,
-                                     stride=1, ksize=ksize, bias=False)
+                                     stride=1, ksize=ksize, bias=False,
+                                     separable_convolution=separable_convolution)
             self.add_module(name=self.names[i], module=layer)
 
         # add shortcut connection
@@ -404,10 +412,3 @@ class TransitionBlock(nn.Module):
 
         return self.avgpool.forward(self.bottleneck.forward(x))
 
-
-class InvertedResidualBlock(nn.Module):
-    """
-    TODO: implement the mobilenet base block
-    """
-    
-    pass
