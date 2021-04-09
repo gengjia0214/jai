@@ -88,6 +88,7 @@ class _Logger:
         self.best_comprehensive_metric = None
         self.best_ground_truths = {'train': [], 'eval': []}
         self.best_predictions = {'train': [], 'eval': []}
+        self.best_data_ids = {'train': [], 'eval': []}
 
         # row index for truth, column index for prediction
         # unlock and refresh when meet better epoch
@@ -100,23 +101,30 @@ class _Logger:
         self.temp_prediction = {'train': [], 'eval': []}
         self.temp_confusion_matrix = {'train': np.zeros((n_classes, n_classes)),
                                       'eval': np.zeros((n_classes, n_classes))}
+        self.temp_data_ids = {'train': [], 'eval': []}
 
-    def login_batch(self, phase: str, ground_truth: list, predictions: list, loss: float or None):
+    def login_batch(self, phase: str, ground_truth: list, predictions: list, loss: float or None,
+                    data_ids=None):
         """
         Login the batch data
         :param phase: train or eval
         :param ground_truth: ground truth
         :param predictions: predicted class
         :param loss: batch loss
+        :param data_ids: data id if provided
         :return: void
         """
 
         # performance metrics
-        batch_acc = []
-        for t, p in zip(ground_truth, predictions):
+        for i, (t, p) in enumerate(zip(ground_truth, predictions)):
             # update the list container
             self.temp_ground_truth[phase].append(t)
             self.temp_prediction[phase].append(p)
+            if data_ids is not None:
+                self.temp_data_ids[phase].append(data_ids[i])
+            else:
+                self.temp_data_ids[phase].append(None)
+
             # row index for truth, column index for prediction
             self.temp_confusion_matrix[phase][t][p] += 1
 
@@ -127,7 +135,7 @@ class _Logger:
             self.temp_batch_loss[phase].append(loss)
             self.batch_loss[phase].append(loss)
 
-    def login_epoch(self, phase: str, criteria: str, epoch: int):
+    def login_epoch(self, phase: str, criteria: str, epoch: int, evaluation=False):
         """
         Operations when an iteration complete
         For training phase:
@@ -143,6 +151,7 @@ class _Logger:
         :param phase: train or eval
         :param criteria: criteria metric key: accuracy, precision, recall or f1 score
         :param epoch: the current epoch index
+        :param evaluation: whether the agent is doing evaluation on test set
         :return: epoch_loss, acc, selected_metric
         """
 
@@ -162,12 +171,13 @@ class _Logger:
         # for eval phase => reset temp pointer & check whether get better performance
         if phase == 'eval':
             # update best epoch info
-            if selected_metric > self.best_criteria_metric:
+            if selected_metric > self.best_criteria_metric or evaluation:
                 self.best_criteria_metric = selected_metric
                 self.best_acc = acc
                 self.best_epoch = epoch
                 self.best_ground_truths = self.temp_ground_truth
                 self.best_predictions = self.temp_prediction
+                self.best_data_ids = self.temp_data_ids
                 self.best_confusion_matrix = self.temp_confusion_matrix
                 self.best_comprehensive_metric = perf_metrics  # login all metrics into this pointer
                 find_better_model = True
@@ -175,6 +185,7 @@ class _Logger:
             self.temp_batch_loss = {'train': [], 'eval': []}
             self.temp_ground_truth = {'train': [], 'eval': []}
             self.temp_prediction = {'train': [], 'eval': []}
+            self.temp_data_ids = {'train': [], 'eval': []}
             self.temp_confusion_matrix = {'train': np.zeros((self.n_classes, self.n_classes)),
                                           'eval': np.zeros((self.n_classes, self.n_classes))}
             # collect the garbage
@@ -244,10 +255,10 @@ class _Logger:
     def get_best_predictions(self):
         """
         Getter to get the predictions of the best epoch
-        :return: ground truth and predictions
+        :return: data_ids, ground truth, and predictions
         """
 
-        return self.best_ground_truths, self.best_predictions
+        return self.best_data_ids, self.best_ground_truths, self.best_predictions
 
     def reset(self):
         """
@@ -698,6 +709,13 @@ class Evaluator(__BaseAgent):
             # grab X, Y
             X_mini_batch, Y_mini_batch = mini_batch['x'], mini_batch['y']
 
+            # information
+            data_ids = None
+            if 'info' in mini_batch:
+                info = mini_batch['info']
+                if 'id' in info:
+                    data_ids = info['id']
+
             # ground truth
             ground_truth = Y_mini_batch.cpu().view(-1).tolist()
 
@@ -710,10 +728,10 @@ class Evaluator(__BaseAgent):
 
             # batch logging - ground truth, prediction, batch loss
             self.logger.login_batch(phase='eval', ground_truth=ground_truth, predictions=prediction,
-                                    loss=None)
+                                    loss=None, data_ids=data_ids)
 
         # ITERATION END - login the compute the performance metrics
-        self.logger.login_epoch(phase='eval', criteria=self.criteria, epoch=0)
+        self.logger.login_epoch(phase='eval', criteria=self.criteria, epoch=0, evaluation=True)
         self.report_evaluation_results()
 
         # output
