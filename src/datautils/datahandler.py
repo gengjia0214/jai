@@ -48,10 +48,10 @@ def default_train_processing(crop_size=64, p=0.5,
 
     # p/5 chance of get color jittered (disable the jitter on hue as it would require PIL input)
     # less probability for jitter in case it affect the model learning
-    jitter = RandomApply([ColorJitter(brightness=0.25, contrast=0.25, saturation=0.25, hue=0)], p/5)
+    jitter = RandomApply([ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0)], p/5)
 
     # random crop
-    crop = RandomCrop(crop_size, padding=4)
+    crop = RandomApply(RandomCrop(crop_size, padding=2), p)
 
     return [flip, jitter, crop, ToTensor(), Normalize(mean=mean, std=std)]
 
