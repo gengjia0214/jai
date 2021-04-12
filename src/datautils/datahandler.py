@@ -195,8 +195,9 @@ class ImgDataset(Dataset):
             raise Exception('Mode must be either disk or memory but was {}'.format(mode))
 
         # process the image
-        if self.processing is not None and not isinstance(img, Image.Image):
-            img = ToPILImage()(img)
+        if self.processing is not None:
+            if not isinstance(img, Image.Image):
+                img = ToPILImage()(img)
             for f in self.processing:
                 img = f(img)
 
