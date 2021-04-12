@@ -50,10 +50,7 @@ def default_train_processing(crop_size=64, p=0.5,
     # less probability for jitter in case it affect the model learning
     jitter = RandomApply([ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0)], p/5)
 
-    # random crop
-    crop = RandomApply(RandomCrop(crop_size, padding=2), p)
-
-    return [flip, jitter, crop, ToTensor(), Normalize(mean=mean, std=std)]
+    return [flip, jitter, ToTensor(), Normalize(mean=mean, std=std)]
 
 
 class DataPackerAbstract:
