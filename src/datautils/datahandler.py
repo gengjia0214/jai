@@ -28,13 +28,12 @@ def default_test_processing(mean=(0.49139968, 0.48215841, 0.44653091),
     return [ToTensor(), Normalize(mean=mean, std=std)]
 
 
-def default_train_processing(crop_size=64, p=0.5,
+def default_train_processing(p=0.5,
                              mean=(0.49139968, 0.48215841, 0.44653091),
                              std=(0.24703223, 0.24348513, 0.26158784)):
     """
     Get the default augmentation.
     Random Horizontal Flip & RandomVerticalFlip & Random Jitter
-    :param crop_size: crop size for random crop
     :param p: probability
     :param mean: mean
     :param std: std
