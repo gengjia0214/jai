@@ -288,6 +288,7 @@ class __BaseAgent:
 
         if not os.path.isdir(checkpoint_folder):
             raise FileExistsError('File does not exits: {}'.format(checkpoint_folder))
+        assert (blocks_to_freeze is None or isinstance(blocks_to_freeze, list)), 'blocks_to_freeze must be a list of block names or None'
 
         # agent type
         self.agent = None
@@ -372,27 +373,27 @@ class __BaseAgent:
                 model_state = meta_state['model_state'] if 'model_state' in meta_state else meta_state
                 self.model.load_state_dict(model_state)
 
-                # replace the old head with new head
-                if self.new_head is not None:
+            # turn on/off the requires_grads
+            for (param_name, param) in self.model.named_parameters():
+                requires_grad = True
+                for frozen_block in self.blocks_to_freeze:
+                    if param_name.startswith(frozen_block):  # decide which block to freeze based on the prefix
+                        requires_grad = False
+                        print("Param {} requires_grad was turned off".format(param_name))
+                param.requires_grad = requires_grad
 
-                    # sanity check, the model must have the head_block
-                    error_msg = 'Model does not have the head_block. Head replacement only supports the mech created by the Builder class'
-                    assert 'head_block' in [name[0] for name in self.model.named_modules()], error_msg
+            # replace the old head with new head
+            if self.new_head is not None:
 
-                    # set it to the new head
-                    new_head = AvgPoolFCHead(**self.new_head) if isinstance(self.new_head, dict) else self.new_head
-                    new_head = new_head.to(self.device)
-                    self.model.head_block = new_head
-                    print('Head module has been replaced.')
+                # sanity check, the model must have the head_block
+                error_msg = 'Model does not have the head_block. Head replacement only supports the mech created by the Builder class'
+                assert 'head_block' in [name[0] for name in self.model.named_modules()], error_msg
 
-                # turn on/off the requires_grads
-                for (param_name, param) in self.model.named_parameters():
-                    requires_grad = True
-                    for frozen_block in self.blocks_to_freeze:
-                        if param_name.startswith(frozen_block):  # decide which block to freeze based on the prefix
-                            requires_grad = False
-                            print("Param {} requires_grad was turned off".format(param_name))
-                    param.requires_grad = requires_grad
+                # set it to the new head
+                new_head = AvgPoolFCHead(**self.new_head) if isinstance(self.new_head, dict) else self.new_head
+                new_head = new_head.to(self.device)
+                self.model.head_block = new_head
+                print('Head module has been replaced.')
 
         elif self.agent == 'evaluator':
             # load the model
